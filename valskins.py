@@ -13,6 +13,7 @@ valorant-api.com asset catalog. No game memory, no overlay, no writes.
 
 import argparse
 import base64
+import collections
 import json
 import os
 import re
@@ -28,6 +29,10 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 INSECURE = ssl._create_unverified_context()
+
+# Last few requests, for the diagnostics panel. Paths only - never query strings,
+# which is where the tokens live.
+RECENT = collections.deque(maxlen=14)
 
 # The client platform blob the game sends. Riot wants this exact JSON shape.
 CLIENT_PLATFORM = base64.b64encode(
@@ -63,12 +68,21 @@ def http_json(url, method="GET", headers=None, body=None, ctx=None, timeout=15,
         req.add_header("Content-Type", "application/json")
     for k, v in (headers or {}).items():
         req.add_header(k, v)
+    def note(status):
+        parsed = urllib.parse.urlsplit(url)
+        host = parsed.netloc.split(":")[0]
+        # Collapse uuids so the log stays readable and puuid-free.
+        path = re.sub(r"/[0-9a-fA-F-]{30,}", "/{id}", parsed.path)
+        RECENT.append(f"{status} {method} {host}{path}")
+
     try:
         with urllib.request.urlopen(req, context=ctx, timeout=timeout) as r:
             raw = r.read()
+            note(r.status)
             return r.status, (json.loads(raw) if raw else None)
     except urllib.error.HTTPError as e:
         raw = e.read()
+        note(e.code)
         try:
             return e.code, json.loads(raw) if raw else None
         except Exception:
@@ -128,7 +142,31 @@ def lan_ip():
 # ---------------------------------------------------------------- riot client
 
 class RiotAuthError(Exception):
-    pass
+    """Something local is wrong: no lockfile, not logged in, no session."""
+
+
+class RiotApiError(Exception):
+    """Riot's game servers rejected a request. Carries what they actually said,
+    because 'session expired' was hiding the useful part."""
+
+    HINTS = {
+        400: "Usually a stale client version - VALORANT may have just patched.",
+        401: "The token isn't accepted for game requests. Is VALORANT itself "
+             "running, not just the Riot launcher?",
+        403: "Riot refused the request outright. Wrong region/shard is the usual "
+             "cause; try --region and --shard.",
+    }
+
+    def __init__(self, where, status, body=None):
+        self.where = where
+        self.status = status
+        code = ""
+        if isinstance(body, dict):
+            code = body.get("errorCode") or body.get("message") or ""
+        self.code = code
+        detail = f" ({code})" if code else ""
+        super().__init__(f"{where} returned HTTP {status}{detail}. "
+                         f"{self.HINTS.get(status, '')}".strip())
 
 
 def lockfile_path(override=None):
@@ -249,6 +287,22 @@ class Auth:
             "X-Riot-ClientVersion": self.client_version,
         }
 
+    def try_log_version(self):
+        """Swap in the client version from ShooterGame.log. valorant-api.com can
+        lag a patch by a few hours; the log matches what's actually installed.
+        Returns True if it produced something new to try."""
+        try:
+            with open(shootergame_log(self.args.log), "r", encoding="utf-8",
+                      errors="ignore") as f:
+                m = re.search(r"CI server version:\s*(\S+)", f.read())
+        except OSError:
+            return False
+        if not m or m.group(1) == self.client_version:
+            return False
+        log(f"client version {self.client_version} -> {m.group(1)} (from game log)")
+        self.client_version = m.group(1)
+        return True
+
     @property
     def local(self):
         """Base url + headers for the Riot client's own localhost API."""
@@ -358,6 +412,7 @@ class Collector(threading.Thread):
         self._state = {"status": "starting", "message": "Loading skin catalog...",
                        "players": [], "updated": time.time()}
         self._match_id = None
+        self._probe = 0
         self._wake = threading.Event()
 
     # -- public
@@ -368,6 +423,26 @@ class Collector(threading.Thread):
     def poke(self):
         self._match_id = None
         self._wake.set()
+
+    def diagnostics(self):
+        """Everything needed to debug a bad state, with no secrets in it."""
+        a = self.auth
+        st = self.state()
+        return {
+            "status": st.get("status"),
+            "message": st.get("message"),
+            "phase": st.get("phase"),
+            "lockfile_found": bool(a.port),
+            "logged_in": bool(a.access_token),
+            "puuid_prefix": (a.puuid or "")[:8],
+            "region": a.region,
+            "shard": a.shard,
+            "client_version": a.client_version,
+            "catalog_skins": len(self.catalog["skins"]) if self.catalog else 0,
+            "players": len(st.get("players") or []),
+            "platform": f"{sys.platform} python {sys.version.split()[0]}",
+            "recent_requests": list(RECENT),
+        }
 
     def _set(self, **kw):
         with self._lock:
@@ -397,6 +472,18 @@ class Collector(threading.Thread):
                 authed = False
                 self._match_id = None
                 self._set(status="no_client", message=str(e), players=[])
+            except RiotApiError as e:
+                self._match_id = None
+                log(f"api error: {e}")
+                # A 400 here is nearly always a client version that has drifted
+                # from the installed build; the game's own log is authoritative.
+                if e.status == 400 and self.auth.try_log_version():
+                    self._set(status="idle", message="Client version looked stale - "
+                                                     "retrying with the game's own.")
+                else:
+                    if e.status == 401:
+                        authed = False   # worth a fresh token before giving up
+                    self._set(status="api_error", message=str(e), players=[])
             except Exception as e:
                 authed = False
                 self._set(status="error", message=f"{type(e).__name__}: {e}")
@@ -425,10 +512,18 @@ class Collector(threading.Thread):
             self._set(status="idle", phase="menus", players=[], score=None,
                       message="In the menus. Queue up and this fills in.")
         else:
-            # No presence yet (client still starting) - probe directly.
-            self._ingame(ctx) or self._pregame(ctx) or self._set(
-                status="idle", phase="unknown", players=[],
-                message="Waiting for the game client...")
+            # No presence blob means VALORANT itself isn't up yet - the Riot
+            # launcher alone gets a token the game servers won't accept. Probing
+            # them here just manufactures 401s, so only do it occasionally as a
+            # safety net in case presence is merely late.
+            self._probe += 1
+            probed = (self._probe % 10 == 0 and
+                      (self._ingame(ctx, probe=True) or self._pregame(ctx, probe=True)))
+            if not probed:
+                self._set(status="waiting_game", phase="unknown", players=[],
+                          score=None,
+                          message="Waiting for VALORANT. The Riot launcher on its own "
+                                  "isn't enough - the game has to be running.")
 
     def _presence(self):
         base, headers = self.auth.local
@@ -444,12 +539,14 @@ class Collector(threading.Thread):
                     return None
         return None
 
-    def _ingame(self, ctx):
+    def _ingame(self, ctx, probe=False):
         a = self.auth
         status, data = http_json(f"{a.glz}/core-game/v1/players/{a.puuid}",
                                  headers=a.headers)
         if status in (400, 401, 403):
-            raise RiotAuthError("Session expired - re-authenticating.")
+            if probe:
+                return False        # game not up yet; not an auth failure
+            raise RiotApiError("core-game/players", status, data)
         if status == 404 or not data or not data.get("MatchID"):
             return False
         match_id = data["MatchID"]
@@ -483,14 +580,16 @@ class Collector(threading.Thread):
         log(f"match {match_id[:8]} on {map_name}: {len(players)} loadouts")
         return True
 
-    def _pregame(self, ctx):
+    def _pregame(self, ctx, probe=False):
         """Agent select. Skins aren't published until the match starts, but the
         roster is - so the app fills in a phase early."""
         a = self.auth
         status, data = http_json(f"{a.glz}/pregame/v1/players/{a.puuid}",
                                  headers=a.headers)
         if status in (400, 401, 403):
-            raise RiotAuthError("Session expired - re-authenticating.")
+            if probe:
+                return False
+            raise RiotApiError("pregame/players", status, data)
         if status == 404 or not data or not data.get("MatchID"):
             return False
         match_id = data["MatchID"]
@@ -714,6 +813,9 @@ background:#1b2029;color:#c9cfdb;cursor:pointer}button:hover{border-color:#3d455
 #help b{color:#e6e8ee}
 #help code{background:#1b2029;border:1px solid #2b3140;border-radius:5px;padding:1px 6px;
 font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;white-space:nowrap}
+#diagout{background:#0f1319;border:1px solid #2b3140;border-radius:8px;padding:12px;
+font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+line-height:1.5;color:#a8b4c4;max-height:320px;overflow:auto;user-select:all}
 .steps{padding-left:20px;margin:0}
 .steps li{margin-bottom:10px}
 table.ref{border-collapse:collapse;width:100%;margin-bottom:6px}
@@ -808,6 +910,15 @@ table.ref .pill{white-space:nowrap;font-size:11.5px}
         newer release.</td></tr>
   </table>
 
+  <h2>Still stuck?</h2>
+  <p>Grab the diagnostics and paste them wherever you're getting help &mdash; status,
+    region, client version and the last handful of requests with their HTTP codes.
+    No tokens, no riot id, no puuid beyond its first few characters.</p>
+  <p><button onclick="copyDiag(this)">copy diagnostics</button>
+    <span class="muted" style="margin-left:8px">or open
+    <code>/api/diag</code></span></p>
+  <pre id="diagout" hidden></pre>
+
   <h2>What it does and doesn't do</h2>
   <p>It calls the same endpoints the game client calls, plus a public asset site for
     skin names and icons. It is read&#8209;only: no game memory, no injection, nothing
@@ -841,6 +952,20 @@ function copyShare(url, btn){
   navigator.clipboard.writeText(url);
   btn.textContent = 'copied';
   setTimeout(() => btn.textContent = 'copy', 1500);
+}
+
+async function copyDiag(btn){
+  try{
+    const q = TOKEN ? '?token=' + encodeURIComponent(TOKEN) : '';
+    const text = await (await fetch('/api/diag' + q, {cache:'no-store'})).text();
+    const out = document.getElementById('diagout');
+    out.textContent = text; out.hidden = false;
+    await navigator.clipboard.writeText(text);
+    btn.textContent = 'copied to clipboard';
+  }catch(e){
+    btn.textContent = 'copy failed - select the text below';
+  }
+  setTimeout(() => btn.textContent = 'copy diagnostics', 2500);
 }
 
 function renderShare(urls){
@@ -887,9 +1012,10 @@ function render(s){
   window._s = s;
   const st = document.getElementById('status'), txt = document.getElementById('statustext');
   st.className = 'pill ' + ({in_game:'live', pregame:'live', idle:'wait',
-                             starting:'wait'}[s.status] || 'bad');
+                             starting:'wait', waiting_game:'wait'}[s.status] || 'bad');
   txt.textContent = {in_game:'live', pregame:'agent select', idle:'waiting for match',
-                     starting:'starting', no_client:'client not running',
+                     starting:'starting', no_client:'riot client not running',
+                     waiting_game:'waiting for VALORANT', api_error:'riot rejected us',
                      error:'error'}[s.status] || s.status;
   const bits = [];
   if(s.map) bits.push(s.map);
@@ -987,6 +1113,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.is_loopback and self.lan_urls:
                 state["lan_urls"] = list(self.lan_urls)
             self._send(200, json.dumps(state), "application/json")
+        elif parsed.path == "/api/diag":
+            self._send(200, json.dumps(self.collector.diagnostics(), indent=2),
+                       "application/json")
         else:
             self._send(404, "not found\n", "text/plain")
 
