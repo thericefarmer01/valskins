@@ -17,7 +17,7 @@ import threading
 
 import webview
 
-from valskins import Collector, Handler, lan_ip, log
+from valskins import Collector, Handler, lan_ips, log
 from http.server import ThreadingHTTPServer
 
 
@@ -74,11 +74,12 @@ def main():
     port = free_port(opts.port)
     server = ThreadingHTTPServer((host, port), Handler)
     if Handler.token:
-        Handler.lan_url = f"http://{lan_ip()}:{port}/?token={Handler.token}"
+        Handler.lan_urls = [f"http://{ip}:{port}/?token={Handler.token}"
+                            for ip in lan_ips()]
     threading.Thread(target=server.serve_forever, daemon=True).start()
     log(f"ui on http://127.0.0.1:{port}/")
-    if Handler.lan_url:
-        log(f"share {Handler.lan_url}")
+    for url in Handler.lan_urls:
+        log(f"share {url}")
 
     webview.create_window("valskins", f"http://127.0.0.1:{port}/",
                           width=1180, height=880, min_size=(720, 520),

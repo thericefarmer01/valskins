@@ -33,9 +33,22 @@ Flags, if you want them:
 ## Watching on your Mac while you play on the PC
 
 No flags, no config. In the app on the PC, click **watch on another device** — it
-shows a link like `http://192.168.1.42:8787/?token=k3Rt9x`. Open that on the Mac
-(or phone, or second monitor) and you get the same live view while Valorant stays
-fullscreen. [mac/ValSkins.command](mac/ValSkins.command) will remember the link and
+lists a link for every private address this machine has, best guess first:
+
+```
+try first  http://192.168.1.42:8787/?token=k3Rt9x     <- ethernet
+or         http://192.168.1.77:8787/?token=k3Rt9x     <- wifi
+or         http://10.8.0.6:8787/?token=k3Rt9x         <- vpn adapter
+```
+
+A gaming PC usually has several (ethernet, wifi, a VPN or Hyper-V adapter) and only
+one is reachable from the other device, so it lists them all instead of guessing.
+Open one on the Mac (or phone, or second monitor) and you get the same live view
+while Valorant stays fullscreen.
+
+Ethernet on the PC and wifi on the Mac is fine as long as both hang off the same
+router. A guest SSID won't work, and Windows marking the wired network **Public**
+instead of Private will block it regardless of the firewall prompt. [mac/ValSkins.command](mac/ValSkins.command) will remember the link and
 open it in its own window:
 
 ```bash

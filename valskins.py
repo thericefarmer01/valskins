@@ -82,15 +82,47 @@ def http_json(url, method="GET", headers=None, body=None, ctx=None, timeout=15,
         raise
 
 
-def lan_ip():
+def lan_ips():
+    """Every private IPv4 this machine has, best guess first.
+
+    A gaming PC routinely has ethernet plus wifi plus a VPN or Hyper-V adapter,
+    and only one of them is the one the Mac can reach - so list them all rather
+    than guessing. The default-route address goes first because it usually is
+    the right one.
+    """
+    found = []
+
+    def keep(ip):
+        if not ip or ip.startswith(("127.", "169.254.")):
+            return
+        parts = ip.split(".")
+        if len(parts) != 4 or not all(p.isdigit() for p in parts):
+            return
+        a, b = int(parts[0]), int(parts[1])
+        if (a == 10 or (a == 172 and 16 <= b <= 31) or (a == 192 and b == 168)) \
+                and ip not in found:
+            found.append(ip)
+
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
-    except Exception:
-        return "127.0.0.1"
+        s.connect(("8.8.8.8", 80))       # no packets sent; just picks the route
+        keep(s.getsockname()[0])
+    except OSError:
+        pass
     finally:
         s.close()
+    try:
+        # Windows registers every adapter's address under the hostname.
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            keep(info[4][0])
+    except (socket.gaierror, OSError):
+        pass
+    return found
+
+
+def lan_ip():
+    ips = lan_ips()
+    return ips[0] if ips else "127.0.0.1"
 
 
 # ---------------------------------------------------------------- riot client
@@ -662,13 +694,18 @@ h2{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#7b8496;ma
 .bar{width:3px;align-self:stretch;border-radius:2px;flex:none}
 .muted{color:#767d8b}
 .empty{padding:60px 20px;text-align:center;color:#767d8b}
-#sharebox{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;
-padding:11px 18px;background:#171c26;border-bottom:1px solid #232833;color:#c3cad6}
-#sharebox code{background:#0f1319;border:1px solid #2b3140;border-radius:6px;
+#sharebox{font-size:13px;padding:12px 18px;background:#171c26;
+border-bottom:1px solid #232833;color:#c3cad6}
+.sharehead{margin-bottom:9px}
+#sharelist{display:flex;flex-direction:column;gap:6px;margin-bottom:9px}
+.sharerow{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.sharerow code{background:#0f1319;border:1px solid #2b3140;border-radius:6px;
 padding:3px 9px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#7fd6a5}
+.sharerow .idx{width:74px;flex:none;font-size:11px;text-transform:uppercase;
+letter-spacing:.06em;color:#79808f}
 button{font:inherit;font-size:12px;padding:5px 11px;border-radius:8px;border:1px solid #2b3140;
 background:#1b2029;color:#c9cfdb;cursor:pointer}button:hover{border-color:#3d4557}
-.spacer{flex:1}
+.tabs{display:flex;gap:6px;margin-left:auto}
 .tab{background:none;border-color:transparent;color:#7b8496}
 .tab.on{background:#1b2029;border-color:#2b3140;color:#e6e8ee}
 #help{max-width:820px;font-size:14.5px;color:#c3cad6}
@@ -692,15 +729,16 @@ table.ref .pill{white-space:nowrap;font-size:11.5px}
   <button onclick="refresh(true)">refresh</button>
   <button onclick="share()" id="sharebtn" hidden>watch on another device</button>
   <span class="pill muted" id="age"></span>
-  <span class="spacer"></span>
-  <button onclick="setView('roster')" id="tab-roster" class="tab on">roster</button>
-  <button onclick="setView('help')" id="tab-help" class="tab">how to use</button>
+  <span class="tabs">
+    <button onclick="setView('roster')" id="tab-roster" class="tab on">roster</button>
+    <button onclick="setView('help')" id="tab-help" class="tab">how to use</button>
+  </span>
 </header>
 <div id="sharebox" hidden>
-  <span>Open this on your Mac or phone:</span>
-  <code id="shareurl"></code>
-  <button onclick="copyShare()" id="copybtn">copy</button>
-  <span class="muted">Same Wi-Fi only. The link expires when you close valskins.</span>
+  <div class="sharehead">Open one of these on your Mac or phone &mdash; this PC has more
+    than one address, so try the first and work down:</div>
+  <div id="sharelist"></div>
+  <div class="muted">Same network only. Links stop working when you close valskins.</div>
 </div>
 <main id="out"><div class="empty">loading&hellip;</div></main>
 
@@ -737,10 +775,14 @@ table.ref .pill{white-space:nowrap;font-size:11.5px}
     respect the game's incognito setting.</p>
 
   <h2>Watching on another device</h2>
-  <p>Click <b>watch on another device</b> and open the link it gives you on a Mac,
-    phone or second monitor &mdash; useful when VALORANT is fullscreen. Both screens stay
-    live at once. Same Wi&#8209;Fi only; the link carries a token that changes every
-    time valskins starts, so closing the app kills every old link.</p>
+  <p>Click <b>watch on another device</b> and open the link on a Mac, phone or second
+    monitor &mdash; useful when VALORANT is fullscreen. Both screens stay live at once.
+    The link carries a token that changes every time valskins starts, so closing the
+    app kills every old link.</p>
+  <p>If this PC has more than one network adapter &mdash; ethernet plus Wi&#8209;Fi, or a
+    VPN installed &mdash; you'll get several links. Only one of them is reachable from
+    your other device, so work down the list. Wired and wireless on the same router
+    reach each other fine; a guest network won't.</p>
   <p class="muted">Windows will ask about the firewall the first time. Allow it on
     <b>private</b> networks &mdash; that prompt is what lets your other device connect.</p>
 
@@ -756,8 +798,9 @@ table.ref .pill{white-space:nowrap;font-size:11.5px}
       <td>You opened the share URL without the <code>?token=&hellip;</code> part.
         Copy it again from the button above.</td></tr>
     <tr><td><code>valskins unreachable</code> on the other device</td>
-      <td>Windows Firewall, a different Wi&#8209;Fi network, or valskins was closed on
-        the PC.</td></tr>
+      <td>Try the next address in the share list. Otherwise: Windows Firewall, or the
+        wired network is marked <b>Public</b> instead of Private (Settings &rarr;
+        Network &rarr; Ethernet), or the two devices aren't on the same router.</td></tr>
     <tr><td>Names show as agents instead of riot&nbsp;ids</td>
       <td>Those players are hidden by the game's incognito setting. Nothing to fix.</td></tr>
     <tr><td>Everything empty right after a patch</td>
@@ -794,10 +837,27 @@ function share(){
   document.getElementById('sharebtn').textContent =
     box.hidden ? 'watch on another device' : 'hide link';
 }
-function copyShare(){
-  navigator.clipboard.writeText(document.getElementById('shareurl').textContent);
-  const b = document.getElementById('copybtn');
-  b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1500);
+function copyShare(url, btn){
+  navigator.clipboard.writeText(url);
+  btn.textContent = 'copied';
+  setTimeout(() => btn.textContent = 'copy', 1500);
+}
+
+function renderShare(urls){
+  document.getElementById('sharebtn').hidden = false;
+  document.querySelector('.sharehead').textContent = urls.length > 1
+    ? 'Open one of these on your Mac or phone — this PC has more than one address, ' +
+      'so try the first and work down:'
+    : 'Open this on your Mac or phone:';
+  const list = document.getElementById('sharelist');
+  if(list.dataset.urls === urls.join()) return;   // don't clobber "copied" labels
+  list.dataset.urls = urls.join();
+  list.innerHTML = urls.map((u, i) => `
+    <div class="sharerow">
+      <span class="idx">${urls.length > 1 ? (i === 0 ? 'try first' : 'or') : ''}</span>
+      <code>${esc(u)}</code>
+      <button onclick="copyShare('${esc(u)}', this)">copy</button>
+    </div>`).join('');
 }
 
 function card(p){
@@ -838,10 +898,7 @@ function render(s){
     bits.push(`${s.score[0]} – ${s.score[1]}`);
   if(s.message) bits.push(s.message);
   document.getElementById('meta').textContent = bits.join('  ·  ');
-  if(s.lan_url){
-    document.getElementById('sharebtn').hidden = false;
-    document.getElementById('shareurl').textContent = s.lan_url;
-  }
+  if(s.lan_urls && s.lan_urls.length) renderShare(s.lan_urls);
   const out = document.getElementById('out');
   const mine = (s.players || []).filter(p => p.is_teammate);
   const theirs = (s.players || []).filter(p => !p.is_teammate);
@@ -888,7 +945,7 @@ refresh();
 class Handler(BaseHTTPRequestHandler):
     collector = None
     token = None
-    lan_url = None          # shown in the UI so the app needs no console
+    lan_urls = ()           # shown in the UI so the app needs no console
     protocol_version = "HTTP/1.1"
 
     @property
@@ -926,9 +983,9 @@ class Handler(BaseHTTPRequestHandler):
             if query.get("poke"):
                 self.collector.poke()
             state = self.collector.state()
-            # Only the local window is told the share link (it carries the token).
-            if self.is_loopback and self.lan_url:
-                state["lan_url"] = self.lan_url
+            # Only the local window is told the share links (they carry the token).
+            if self.is_loopback and self.lan_urls:
+                state["lan_urls"] = list(self.lan_urls)
             self._send(200, json.dumps(state), "application/json")
         else:
             self._send(404, "not found\n", "text/plain")
@@ -960,8 +1017,9 @@ def main():
     suffix = f"?token={args.token}" if args.token else ""
     log(f"local:  http://127.0.0.1:{args.port}/")
     if args.host == "0.0.0.0":
-        Handler.lan_url = f"http://{lan_ip()}:{args.port}/{suffix}"
-        log(f"on your Mac / phone:  {Handler.lan_url}")
+        Handler.lan_urls = [f"http://{ip}:{args.port}/{suffix}" for ip in lan_ips()]
+        for url in Handler.lan_urls:
+            log(f"on your Mac / phone:  {url}")
     if args.open:
         webbrowser.open(f"http://127.0.0.1:{args.port}/{suffix}")
     try:
