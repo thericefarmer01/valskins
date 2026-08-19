@@ -34,6 +34,32 @@ INSECURE = ssl._create_unverified_context()
 # which is where the tokens live.
 RECENT = collections.deque(maxlen=14)
 
+# Details of the most recent remote 4xx, to tell an application-level refusal
+# (json body with an errorCode) from an edge block (html, cloudflare headers).
+LAST_REMOTE_ERROR = {}
+
+# Riot's edge rejects obviously non-client user agents. The game sends the first
+# of these; the launcher sends something like the second. Rotated on refusal.
+UA_CANDIDATES = [
+    "ShooterGame/{gv} Windows/10.0.19045.1.256.64bit",
+    "RiotClient/{v} rso-auth (Windows;10;;Professional, x64)",
+    None,   # urllib's own - what shipped up to v0.1.4
+]
+
+
+def deep_get(obj, key, depth=0):
+    """Find a key anywhere in a nested dict. Riot reshuffles presence between
+    flat and nested shapes, and this survives both."""
+    if depth > 4 or not isinstance(obj, dict):
+        return None
+    if key in obj:
+        return obj[key]
+    for value in obj.values():
+        found = deep_get(value, key, depth + 1)
+        if found is not None:
+            return found
+    return None
+
 # The client platform blob the game sends. Riot wants this exact JSON shape.
 CLIENT_PLATFORM = base64.b64encode(
     (
@@ -92,6 +118,18 @@ def http_json(url, method="GET", headers=None, body=None, ctx=None, timeout=15,
         except Exception:
             body = None
         note(e.code, body)
+        if "127.0.0.1" not in url:
+            LAST_REMOTE_ERROR.clear()
+            LAST_REMOTE_ERROR.update({
+                "status": e.code,
+                "url": re.sub(r"/[0-9a-fA-F-]{30,}", "/{id}",
+                              urllib.parse.urlsplit(url).path),
+                "server": e.headers.get("server"),
+                "content_type": e.headers.get("content-type"),
+                "cf_ray": bool(e.headers.get("cf-ray")),
+                # Enough of the body to tell html from json, no more.
+                "body": re.sub(r"\s+", " ", raw.decode("utf-8", "replace"))[:180],
+            })
         return e.code, body
     except urllib.error.URLError as e:
         # Machines with an unconfigured cert store can't verify valorant-api.com.
@@ -204,6 +242,8 @@ class Auth:
         self.shard = args.shard
         self.client_version = args.client_version
         self.version_log = self.version_api = None
+        self.variants = []
+        self.variant = 0
 
     def refresh(self):
         path = lockfile_path(self.args.lockfile)
@@ -237,6 +277,8 @@ class Auth:
             self._detect_region(basic)
         if not self.client_version:
             self._detect_client_version()
+        if not self.variants:
+            self.build_variants()
         return self
 
     def _detect_region(self, basic):
@@ -294,24 +336,55 @@ class Auth:
         if not self.client_version:
             raise RiotAuthError("Could not determine the client version.")
 
-    def try_alt_version(self):
-        """Swap to the other candidate version. Returns True if there was one."""
-        other = (self.version_api if self.client_version == self.version_log
-                 else self.version_log)
-        if not other or other == self.client_version:
+    def build_variants(self):
+        """Every (client version, user agent) pair worth trying, best first.
+
+        A refusal can come from either - a version Riot doesn't recognise, or an
+        edge block on the user agent - and from here there's no way to tell which
+        without trying. So enumerate and rotate on refusal.
+        """
+        versions = [v for v in (self.version_log, self.version_api) if v]
+        self.variants = [(v, ua) for v in versions for ua in UA_CANDIDATES]
+        self.variant = 0
+
+    def next_variant(self):
+        """Advance to the next combination. False once they're exhausted."""
+        if self.variant + 1 >= len(self.variants):
             return False
-        log(f"client version {self.client_version} -> {other}")
-        self.client_version = other
+        self.variant += 1
+        version, ua = self.variants[self.variant]
+        self.client_version = version
+        log(f"retrying as variant {self.variant + 1}/{len(self.variants)}: "
+            f"{version}, ua={ua or 'urllib default'}")
         return True
 
     @property
+    def game_version(self):
+        """release-13.04-shipping-20-5340415 -> 13.04.00.5340415, which is the
+        form the game itself puts in its user agent."""
+        m = re.match(r"release-(\d+\.\d+)-\w+-\d+-(\d+)", self.client_version or "")
+        return f"{m.group(1)}.00.{m.group(2)}" if m else (self.client_version or "")
+
+    @property
+    def user_agent(self):
+        if not self.variants:
+            return None
+        template = self.variants[self.variant][1]
+        if not template:
+            return None
+        return template.format(v=self.client_version, gv=self.game_version)
+
+    @property
     def headers(self):
-        return {
+        h = {
             "Authorization": f"Bearer {self.access_token}",
             "X-Riot-Entitlements-JWT": self.entitlements,
             "X-Riot-ClientPlatform": CLIENT_PLATFORM,
             "X-Riot-ClientVersion": self.client_version,
         }
+        if self.user_agent:
+            h["User-Agent"] = self.user_agent
+        return h
 
     @property
     def local(self):
@@ -455,6 +528,12 @@ class Collector(threading.Thread):
             "players": len(st.get("players") or []),
             "platform": f"{sys.platform} python {sys.version.split()[0]}",
             "presence": dict(self._presence_debug),
+            "variant": {
+                "index": a.variant + 1,
+                "of": len(a.variants),
+                "user_agent": a.user_agent or "urllib default",
+            },
+            "last_remote_error": dict(LAST_REMOTE_ERROR),
             "recent_requests": list(RECENT),
         }
 
@@ -491,10 +570,11 @@ class Collector(threading.Thread):
                 log(f"api error: {e}")
                 # A 400 here is nearly always a client version that has drifted
                 # from the installed build; the game's own log is authoritative.
-                if e.status in (400, 403) and self.auth.try_alt_version():
+                if e.status in (400, 403) and self.auth.next_variant():
+                    a = self.auth
                     self._set(status="idle",
-                              message="Client version looked wrong - retrying with "
-                                      f"{self.auth.client_version}.")
+                              message=f"Refused - trying combination "
+                                      f"{a.variant + 1} of {len(a.variants)}.")
                 else:
                     if e.status == 401:
                         authed = False   # worth a fresh token before giving up
@@ -510,13 +590,16 @@ class Collector(threading.Thread):
         """One pass. Localhost presence drives everything; the remote endpoints
         are only touched when the phase actually changes, so this can poll fast."""
         pres = self._presence() or {}
-        loop = pres.get("sessionLoopState") or ""
+        # Read by search: these fields have lived at the top level and, more
+        # recently, inside nested *PresenceData objects.
+        loop = deep_get(pres, "sessionLoopState") or ""
         ctx = {
-            "queue": pres.get("queueId") or "",
-            "score": ([pres.get("partyOwnerMatchScoreAllyTeam"),
-                       pres.get("partyOwnerMatchScoreEnemyTeam")]
+            "queue": deep_get(pres, "queueId") or "",
+            "score": ([deep_get(pres, "partyOwnerMatchScoreAllyTeam"),
+                       deep_get(pres, "partyOwnerMatchScoreEnemyTeam")]
                       if loop == "INGAME" else None),
-            "map": self.catalog["maps"].get((pres.get("matchMap") or "").lower()),
+            "map": self.catalog["maps"].get(
+                str(deep_get(pres, "matchMap") or "").lower()),
         }
         if loop == "INGAME":
             self._ingame(ctx)
@@ -547,11 +630,21 @@ class Collector(threading.Thread):
                           message="Waiting for a match. (Presence unreadable, so "
                                   "this is polling the match endpoints directly.)")
             else:
-                self._set(status="waiting_game", phase="unknown", players=[],
-                          score=None,
-                          message="Can't see a session yet. If VALORANT is running "
-                                  "and this persists, check the diagnostics in "
-                                  "how to use.")
+                # Both endpoints refused us. Same treatment as the non-probe
+                # path: rotate version/user-agent until something is accepted.
+                a = self.auth
+                if a.next_variant():
+                    self._set(status="idle", players=[], score=None,
+                              message=f"Riot refused the request - trying "
+                                      f"combination {a.variant + 1} of "
+                                      f"{len(a.variants)}.")
+                else:
+                    self._set(status="waiting_game", phase="unknown", players=[],
+                              score=None,
+                              message="Riot refused every version/user-agent "
+                                      "combination. Open the diagnostics in "
+                                      "how to use - the last_remote_error block "
+                                      "says who rejected it.")
 
     def _presence(self):
         base, headers = self.auth.local
@@ -584,7 +677,11 @@ class Collector(threading.Thread):
             dbg["decode_error"] = f"{type(e).__name__}"
             return None
         dbg["blob_keys"] = sorted(blob)[:24]
-        dbg["loop_state"] = blob.get("sessionLoopState")
+        # Riot moved these into nested *PresenceData objects at some point, so
+        # record the shape and read them by search rather than by fixed path.
+        dbg["nested"] = {k: sorted(v)[:14] for k, v in blob.items()
+                         if isinstance(v, dict)}
+        dbg["loop_state"] = deep_get(blob, "sessionLoopState")
         return blob
 
     def _ingame(self, ctx, probe=False):
