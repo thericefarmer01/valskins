@@ -60,6 +60,10 @@ jobs:
     needs: windows
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    # Pages has to be switched on in Settings -> Pages -> Source: GitHub Actions.
+    # Until it is, configure-pages fails - which shouldn't fail the build or send
+    # a failure email, since the exe is what matters here.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
