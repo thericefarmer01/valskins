@@ -804,9 +804,12 @@ padding:3px 9px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#7
 letter-spacing:.06em;color:#79808f}
 button{font:inherit;font-size:12px;padding:5px 11px;border-radius:8px;border:1px solid #2b3140;
 background:#1b2029;color:#c9cfdb;cursor:pointer}button:hover{border-color:#3d4557}
-.tabs{display:flex;gap:6px;margin-left:auto}
-.tab{background:none;border-color:transparent;color:#7b8496}
-.tab.on{background:#1b2029;border-color:#2b3140;color:#e6e8ee}
+.tabs{display:flex;margin-right:4px;border:1px solid #2b3140;border-radius:9px;
+overflow:hidden;flex:none}
+.tab{border:none;border-radius:0;background:#12161d;color:#8d96a7;padding:6px 14px}
+.tab:hover{background:#1b2029;color:#c9cfdb}
+.tab.on{background:#ff4655;color:#fff;font-weight:600}
+.tab.on:hover{background:#ff4655;color:#fff}
 #help{max-width:820px;font-size:14.5px;color:#c3cad6}
 #help h2:first-child{margin-top:6px}
 #help p{margin:0 0 12px}
@@ -825,16 +828,16 @@ table.ref .pill{white-space:nowrap;font-size:11.5px}
 </style></head><body>
 <header>
   <h1>valskins</h1>
+  <span class="tabs">
+    <button onclick="setView('roster')" id="tab-roster" class="tab on">roster</button>
+    <button onclick="setView('help')" id="tab-help" class="tab">how to use</button>
+  </span>
   <span id="status" class="pill wait"><span class="dot"></span><span id="statustext">connecting</span></span>
   <span class="pill" id="meta"></span>
   <button onclick="toggleEnemies()" id="enemybtn">show enemies</button>
   <button onclick="refresh(true)">refresh</button>
   <button onclick="share()" id="sharebtn" hidden>watch on another device</button>
   <span class="pill muted" id="age"></span>
-  <span class="tabs">
-    <button onclick="setView('roster')" id="tab-roster" class="tab on">roster</button>
-    <button onclick="setView('help')" id="tab-help" class="tab">how to use</button>
-  </span>
 </header>
 <div id="sharebox" hidden>
   <div class="sharehead">Open one of these on your Mac or phone &mdash; this PC has more
