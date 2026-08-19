@@ -997,68 +997,158 @@ def demo_state(cat):
 PAGE = r"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>valskins</title><style>
+/* ---------------------------------------------------------------- tokens */
+:root{
+  --cream:#fdf7ef; --cream-2:#f7ede0; --card:#fffdfa;
+  --ink:#2c3e50; --ink-soft:#71879b; --ink-faint:#9aabba;
+  --baby:#aadcf5; --baby-soft:#dcf1fb; --baby-deep:#5ab0dd; --baby-ink:#2b7fa8;
+  --line:#ecdfcd; --line-soft:#f3e9dc;
+  --mint:#63c9a2; --amber:#f2b34b; --rose:#ef7b7b;
+  --shad:22 60 90;
+  --r:16px;
+}
 *{box-sizing:border-box}
 [hidden]{display:none !important}   /* id rules below would otherwise win */
-body{margin:0;font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
-background:#0e1014;color:#e6e8ee}
-header{position:sticky;top:0;z-index:5;display:flex;gap:14px;align-items:center;flex-wrap:wrap;
-padding:12px 18px;background:#14171dee;backdrop-filter:blur(8px);border-bottom:1px solid #23272f}
-h1{font-size:15px;margin:0;letter-spacing:.14em;text-transform:uppercase;color:#ff4655}
-.pill{font-size:12px;padding:3px 9px;border-radius:999px;background:#1e2230;color:#9aa3b5}
-.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
-.live .dot{background:#3ddc84;box-shadow:0 0 8px #3ddc84}
-.wait .dot{background:#ffb03a}.bad .dot{background:#ff4655}
-main{padding:18px;max-width:1400px;margin:0 auto}
-h2{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#7b8496;margin:22px 0 10px}
-.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(390px,1fr))}
-.card{background:#161a21;border:1px solid #232833;border-radius:12px;overflow:hidden}
-.card.you{border-color:#3a4763}
-.who{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #21262f}
-.who img{width:34px;height:34px;border-radius:8px;background:#0d1014}
-.who b{font-size:14px}.who small{color:#78808f;display:block;font-size:11.5px}
-.tag{margin-left:auto;font-size:11px;color:#6d7482}
-.rows{padding:4px 0}
-.row{display:flex;align-items:center;gap:10px;padding:6px 12px}
-.row:hover{background:#1b202a}
-.w{width:62px;flex:none;font-size:10.5px;color:#79808f;text-transform:uppercase;letter-spacing:.06em}
-.thumb{width:74px;height:24px;flex:none;object-fit:contain;object-position:left center;opacity:.95}
-.name{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.name span{color:#767d8b;font-size:11.5px}
-.bar{width:3px;align-self:stretch;border-radius:2px;flex:none}
-.muted{color:#767d8b}
-.empty{padding:60px 20px;text-align:center;color:#767d8b}
-#sharebox{font-size:13px;padding:12px 18px;background:#171c26;
-border-bottom:1px solid #232833;color:#c3cad6}
-.sharehead{margin-bottom:9px}
-#sharelist{display:flex;flex-direction:column;gap:6px;margin-bottom:9px}
-.sharerow{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
-.sharerow code{background:#0f1319;border:1px solid #2b3140;border-radius:6px;
-padding:3px 9px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#7fd6a5}
-.sharerow .idx{width:74px;flex:none;font-size:11px;text-transform:uppercase;
-letter-spacing:.06em;color:#79808f}
-button{font:inherit;font-size:12px;padding:5px 11px;border-radius:8px;border:1px solid #2b3140;
-background:#1b2029;color:#c9cfdb;cursor:pointer}button:hover{border-color:#3d4557}
-.tabs{display:flex;margin-right:4px;border:1px solid #2b3140;border-radius:9px;
-overflow:hidden;flex:none}
-.tab{border:none;border-radius:0;background:#12161d;color:#8d96a7;padding:6px 14px}
-.tab:hover{background:#1b2029;color:#c9cfdb}
-.tab.on{background:#ff4655;color:#fff;font-weight:600}
-.tab.on:hover{background:#ff4655;color:#fff}
-#help{max-width:820px;font-size:14.5px;color:#c3cad6}
+
+body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+color:var(--ink);background:var(--cream);
+background-image:radial-gradient(1100px 380px at 12% -8%, #eaf6fd 0%, transparent 70%),
+                 radial-gradient(900px 320px at 92% -4%, #fdf1e2 0%, transparent 65%)}
+
+/* ---------------------------------------------------------------- header */
+header{position:sticky;top:0;z-index:5;display:flex;gap:12px;align-items:center;
+flex-wrap:wrap;padding:13px 20px;background:#fdf7efd9;backdrop-filter:blur(10px);
+border-bottom:1px solid var(--line)}
+header::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+background:linear-gradient(90deg,var(--baby),var(--cream-2) 45%,var(--baby-soft))}
+h1{font-size:15px;margin:0;letter-spacing:.15em;text-transform:uppercase;
+color:var(--baby-ink);font-weight:700}
+
+.pill{font-size:12px;padding:4px 11px;border-radius:999px;background:#fff;
+border:1px solid var(--line);color:var(--ink-soft);transition:background .2s}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:7px;
+vertical-align:1px}
+.live .dot{background:var(--mint)}
+.live .dot{animation:beat 1.9s ease-in-out infinite}
+.wait .dot{background:var(--amber);animation:breathe 2.6s ease-in-out infinite}
+.bad .dot{background:var(--rose)}
+.live{background:#eefaf4;border-color:#c6ebdb;color:#2f7a5f}
+.bad{background:#fdf0f0;border-color:#f6d5d5;color:#b4504f}
+
+button{font:inherit;font-size:12px;padding:6px 12px;border-radius:10px;
+border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;
+transition:transform .14s cubic-bezier(.2,.8,.3,1), box-shadow .18s, background .18s,
+border-color .18s}
+button:hover{background:var(--baby-soft);border-color:var(--baby);
+box-shadow:0 3px 10px rgb(var(--shad) / .09);transform:translateY(-1px)}
+button:active{transform:translateY(0) scale(.98)}
+
+.tabs{display:flex;margin-right:2px;background:#fff;border:1px solid var(--line);
+border-radius:12px;overflow:hidden;flex:none}
+.tab{border:none;border-radius:0;background:transparent;color:var(--ink-soft);
+padding:7px 15px;transform:none}
+.tab:hover{background:var(--baby-soft);color:var(--baby-ink);transform:none;box-shadow:none}
+.tab.on{background:linear-gradient(180deg,var(--baby),var(--baby-deep));color:#fff;
+font-weight:600}
+.tab.on:hover{background:linear-gradient(180deg,var(--baby),var(--baby-deep));color:#fff}
+
+/* ------------------------------------------------------------------ body */
+main{padding:20px;max-width:1400px;margin:0 auto}
+h2{font-size:11.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);
+margin:24px 0 12px;display:flex;align-items:center;gap:10px}
+h2::after{content:"";flex:1;height:1px;background:var(--line-soft)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(390px,1fr))}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+overflow:hidden;box-shadow:0 1px 2px rgb(var(--shad) / .05),
+0 8px 22px -14px rgb(var(--shad) / .18);
+transition:transform .22s cubic-bezier(.2,.8,.3,1), box-shadow .22s;
+animation:rise .5s cubic-bezier(.2,.75,.3,1) both;
+animation-delay:calc(var(--i,0) * 45ms)}
+.card:hover{transform:translateY(-3px);
+box-shadow:0 2px 4px rgb(var(--shad) / .06), 0 18px 34px -18px rgb(var(--shad) / .30)}
+.card.you{border-color:var(--baby);box-shadow:0 0 0 3px var(--baby-soft),
+0 10px 24px -16px rgb(var(--shad) / .25)}
+
+.who{display:flex;align-items:center;gap:11px;padding:12px 14px;
+background:linear-gradient(180deg,#fff,var(--cream));border-bottom:1px solid var(--line-soft)}
+.who img{width:36px;height:36px;border-radius:11px;background:var(--baby-soft);
+border:1px solid var(--line-soft)}
+.who b{font-size:14px}
+.who small{color:var(--ink-soft);display:block;font-size:11.5px}
+.tag{margin-left:auto;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+color:var(--baby-ink);background:var(--baby-soft);padding:3px 8px;border-radius:999px}
+
+.rows{padding:5px 0}
+.row{display:flex;align-items:center;gap:11px;padding:7px 14px;
+transition:background .16s}
+.row:hover{background:var(--baby-soft)}
+.row:hover .thumb{transform:scale(1.06) translateX(2px)}
+.w{width:62px;flex:none;font-size:10px;color:var(--ink-faint);text-transform:uppercase;
+letter-spacing:.07em}
+/* Skin renders are drawn for a dark game UI - many are near-white with
+   transparency, so they need a tinted chip behind them or they disappear. */
+.thumb{width:78px;height:26px;flex:none;object-fit:contain;object-position:center;
+padding:2px 4px;border-radius:7px;
+background:linear-gradient(140deg,#e7eff6,#d8e6f1);
+transition:transform .22s cubic-bezier(.2,.8,.3,1), box-shadow .2s}
+.row:hover .thumb{box-shadow:0 2px 8px rgb(var(--shad) / .12)}
+.name{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;
+white-space:nowrap;font-weight:500}
+.name span{color:var(--ink-soft);font-size:11.5px;font-weight:400;font-style:italic}
+/* Riot's tier colours are tuned for a dark UI; take a little brightness off so
+   the pale ones (Ultra gold) still register against cream. */
+.bar{width:4px;align-self:stretch;border-radius:3px;flex:none;
+filter:saturate(1.05) brightness(.9)}
+.muted{color:var(--ink-soft)}
+.empty{padding:64px 20px;text-align:center;color:var(--ink-soft);
+animation:rise .45s cubic-bezier(.2,.75,.3,1) both}
+
+/* ----------------------------------------------------------------- share */
+#sharebox{font-size:13px;padding:14px 20px;background:var(--baby-soft);
+border-bottom:1px solid #cfe9f6;color:var(--ink);animation:drop .3s ease both}
+.sharehead{margin-bottom:10px}
+#sharelist{display:flex;flex-direction:column;gap:7px;margin-bottom:10px}
+.sharerow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sharerow code{background:#fff;border:1px solid #cfe9f6;border-radius:8px;
+padding:4px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+color:var(--baby-ink)}
+.sharerow .idx{width:74px;flex:none;font-size:10.5px;text-transform:uppercase;
+letter-spacing:.07em;color:var(--ink-soft)}
+
+/* ------------------------------------------------------------------ help */
+#help{max-width:820px;font-size:14.5px;animation:rise .4s cubic-bezier(.2,.75,.3,1) both}
 #help h2:first-child{margin-top:6px}
-#help p{margin:0 0 12px}
-#help b{color:#e6e8ee}
-#help code{background:#1b2029;border:1px solid #2b3140;border-radius:5px;padding:1px 6px;
+#help p{margin:0 0 12px;color:#43596d}
+#help b{color:var(--ink)}
+#help code{background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 7px;
 font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;white-space:nowrap}
-#diagout{background:#0f1319;border:1px solid #2b3140;border-radius:8px;padding:12px;
-font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
-line-height:1.5;color:#a8b4c4;max-height:320px;overflow:auto;user-select:all}
-.steps{padding-left:20px;margin:0}
-.steps li{margin-bottom:10px}
+#diagout{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;
+font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.55;
+color:#4a6072;max-height:320px;overflow:auto;user-select:all;
+box-shadow:inset 0 1px 3px rgb(var(--shad) / .05)}
+.steps{padding-left:22px;margin:0}
+.steps li{margin-bottom:11px}
 table.ref{border-collapse:collapse;width:100%;margin-bottom:6px}
-table.ref td{border-top:1px solid #21262f;padding:9px 12px 9px 0;vertical-align:top}
+table.ref td{border-top:1px solid var(--line-soft);padding:10px 12px 10px 0;
+vertical-align:top}
 table.ref td:first-child{width:37%;white-space:normal}
 table.ref .pill{white-space:nowrap;font-size:11.5px}
+
+/* -------------------------------------------------------------- keyframes */
+@keyframes rise{from{opacity:0;transform:translateY(12px) scale(.99)}
+to{opacity:1;transform:none}}
+@keyframes drop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes beat{0%,100%{box-shadow:0 0 0 0 rgb(99 201 162 / .55)}
+70%{box-shadow:0 0 0 7px rgb(99 201 162 / 0)}}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes bump{0%{transform:scale(1)}35%{transform:scale(1.14)}100%{transform:scale(1)}}
+.bumped{animation:bump .45s cubic-bezier(.2,.8,.3,1)}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important}
+  .card:hover,button:hover{transform:none}
+}
 </style></head><body>
 <header>
   <h1>valskins</h1>
@@ -1107,9 +1197,9 @@ table.ref .pill{white-space:nowrap;font-size:11.5px}
 
   <h2>Reading a card</h2>
   <p>One row per weapon, skipping default skins. The coloured bar is rarity:
-    <b style="color:#5a9fe2">Select</b>, <b style="color:#009587">Deluxe</b>,
-    <b style="color:#d1548d">Premium</b>, <b style="color:#f5955b">Exclusive</b>,
-    <b style="color:#facc15">Ultra</b>. Grey italics after a skin name is the chroma
+    <b style="color:#3f88c5">Select</b>, <b style="color:#00806f">Deluxe</b>,
+    <b style="color:#c23f7e">Premium</b>, <b style="color:#cf6a26">Exclusive</b>,
+    <b style="color:#9a7500">Ultra</b>. Grey italics after a skin name is the chroma
     variant or gun buddy. <b>show enemies</b> reveals the other team &mdash; their names
     respect the game's incognito setting.</p>
 
@@ -1164,11 +1254,11 @@ table.ref .pill{white-space:nowrap;font-size:11.5px}
     carries real risk. Unofficial and not endorsed by Riot Games.</p>
 </main>
 <script>
-let showEnemies = false, last = 0;
+let showEnemies = false, last = 0, lastSig = '', lastScore = '';
 // A LAN viewer opens the page with ?token=...; every poll has to carry it too.
 const TOKEN = new URLSearchParams(location.search).get('token');
 function toggleEnemies(){ showEnemies = !showEnemies; document.getElementById('enemybtn').textContent =
-  showEnemies ? 'hide enemies' : 'show enemies'; render(window._s); }
+  showEnemies ? 'hide enemies' : 'show enemies'; lastSig = ''; render(window._s); }
 function esc(s){ return (s??'').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 function setView(v){
@@ -1231,11 +1321,11 @@ function card(p){
       <div class="name">${esc(s.skin)}${s.variant ? ` <span>${esc(s.variant)}</span>` : ''}${
         s.buddy ? ` <span>&middot; ${esc(s.buddy)}</span>` : ''}</div>
     </div>`).join('');
-  return `<div class="card${p.is_you ? ' you' : ''}">
+  return `<div class="card${p.is_you ? ' you' : ''}" style="--i:${p._i || 0}">
     <div class="who">
       ${p.agent_icon ? `<img src="${esc(p.agent_icon)}">` : ''}
       <div><b>${esc(p.name)}</b><small>${esc(p.agent)}${p.level ? ' &middot; lvl ' + p.level : ''}</small></div>
-      <span class="tag">${p.is_you ? 'you' : ''}</span>
+      ${p.is_you ? '<span class="tag">you</span>' : ''}
     </div>
     <div class="rows">${rows || `<div class="row muted" style="padding:10px 12px">${
       p.skins.length === 0 && p.locked !== undefined
@@ -1260,17 +1350,35 @@ function render(s){
   if(s.score && s.score[0] !== null && s.score[0] !== undefined)
     bits.push(`${s.score[0]} – ${s.score[1]}`);
   if(s.message) bits.push(s.message);
-  document.getElementById('meta').textContent = bits.join('  ·  ');
+  const meta = document.getElementById('meta');
+  meta.textContent = bits.join('  ·  ');
+  // Give the round score a little kick whenever it moves.
+  const score = JSON.stringify(s.score || null);
+  if(score !== lastScore && lastScore && s.score){
+    meta.classList.remove('bumped');
+    void meta.offsetWidth;              // restart the animation
+    meta.classList.add('bumped');
+  }
+  lastScore = score;
   if(s.lan_urls && s.lan_urls.length) renderShare(s.lan_urls);
   const out = document.getElementById('out');
   const mine = (s.players || []).filter(p => p.is_teammate);
   const theirs = (s.players || []).filter(p => !p.is_teammate);
+
+  // Only touch the DOM when something actually changed. Rebuilding every poll
+  // would restart every entrance animation twice a second.
+  const sig = JSON.stringify([s.status, s.message, showEnemies, s.players]);
+  if(sig === lastSig) return;
+  lastSig = sig;
+
   if(!mine.length && !theirs.length){
     out.innerHTML = `<div class="empty">${esc(s.message || 'nothing yet')}
-      <div style="margin-top:16px"><button onclick="setView('help')">how to use valskins</button></div>
+      <div style="margin-top:18px"><button onclick="setView('help')">how to use valskins</button></div>
     </div>`;
     return;
   }
+  // Stagger the entrance in reading order, teammates first.
+  [...mine, ...theirs].forEach((p, i) => p._i = i);
   let html = `<h2>your team</h2><div class="grid">${mine.map(card).join('')}</div>`;
   if(showEnemies && theirs.length)
     html += `<h2>enemies</h2><div class="grid">${theirs.map(card).join('')}</div>`;
