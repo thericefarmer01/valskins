@@ -1009,6 +1009,9 @@ PAGE = r"""<!doctype html>
   --line:#f0e7da; --line-2:#e7ebef;
   --baby:#8fd0ee; --baby-deep:#3f9fd0; --baby-ink:#1f7ba7; --baby-wash:#e8f5fc;
   --mint:#3fb489; --amber:#dd9a2e; --rose:#dc6a69;
+  /* your own card: warm sand, so it belongs to the cream rather than
+     competing with the blue chrome or the status colours */
+  --mine:#d9bb8c; --mine-wash:#f6ecda; --mine-ink:#8a6a3f;
   --shad:30 60 85; --shad-a:.05; --shad-b:.16;
   --r:18px;
 }
@@ -1020,6 +1023,7 @@ PAGE = r"""<!doctype html>
     --line:#25313e; --line-2:#25313e;
     --baby:#79c6e9; --baby-deep:#4aa8d8; --baby-ink:#9bd9f3; --baby-wash:#1c2c39;
     --mint:#57c79c; --amber:#e5b45f; --rose:#e58786;
+    --mine:#b6905c; --mine-wash:#2b2620; --mine-ink:#e0c193;
     --shad:0 0 0; --shad-a:.25; --shad-b:.45;
   }
 }
@@ -1030,6 +1034,7 @@ PAGE = r"""<!doctype html>
   --line:#25313e; --line-2:#25313e;
   --baby:#79c6e9; --baby-deep:#4aa8d8; --baby-ink:#9bd9f3; --baby-wash:#1c2c39;
   --mint:#57c79c; --amber:#e5b45f; --rose:#e58786;
+  --mine:#b6905c; --mine-wash:#2b2620; --mine-ink:#e0c193;
   --shad:0 0 0; --shad-a:.25; --shad-b:.45;
 }
 
@@ -1102,7 +1107,7 @@ animation-delay:calc(var(--i,0) * 45ms)}
 .card:hover{transform:translateY(-3px);
 box-shadow:0 2px 4px rgb(var(--shad) / var(--shad-a)),
 0 26px 44px -24px rgb(var(--shad) / var(--shad-b))}
-.card.you{box-shadow:0 0 0 2px var(--baby),
+.card.you{box-shadow:0 0 0 2px var(--mine),
 0 16px 34px -20px rgb(var(--shad) / var(--shad-b))}
 
 .who{display:flex;align-items:center;gap:12px;padding:15px 17px 13px}
@@ -1110,7 +1115,7 @@ box-shadow:0 2px 4px rgb(var(--shad) / var(--shad-a)),
 .who b{font-size:14.5px;font-weight:700;letter-spacing:-.01em}
 .who small{color:var(--ink-3);display:block;font-size:11.5px;font-weight:600}
 .tag{margin-left:auto;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
-font-weight:700;color:var(--baby-ink);background:var(--baby-wash);padding:4px 9px;
+font-weight:700;color:var(--mine-ink);background:var(--mine-wash);padding:4px 9px;
 border-radius:999px}
 
 .rows{padding:0 8px 10px}
@@ -1148,28 +1153,67 @@ letter-spacing:.09em;font-weight:700;color:var(--ink-3)}
 box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a))}
 
 /* ------------------------------------------------------------------ help */
-#help{max-width:780px;font-size:14.5px;animation:rise .4s cubic-bezier(.2,.75,.3,1) both}
-#help h2{margin-top:32px}
-#help h2:first-child{margin-top:2px}
-#help p{margin:0 0 13px;color:var(--ink-2)}
-#help b{color:var(--ink);font-weight:700}
-#help code{background:var(--surface);border-radius:7px;padding:2px 8px;
+#help{animation:rise .4s cubic-bezier(.2,.75,.3,1) both}
+.doc{display:grid;grid-template-columns:196px minmax(0,1fr);gap:34px;
+align-items:start;max-width:1020px}
+
+/* sidebar */
+.doc-nav{position:sticky;top:88px;display:flex;flex-direction:column;gap:2px}
+.doc-link{text-align:left;padding:8px 12px;border-radius:10px;font-size:13px;
+font-weight:600;color:var(--ink-2);position:relative}
+.doc-link:hover{background:var(--surface);color:var(--ink)}
+.doc-link.on{background:var(--surface);color:var(--baby-ink);
+box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a))}
+.doc-link.on::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;
+border-radius:2px;background:var(--baby-deep)}
+
+/* article */
+.doc-body{min-width:0;max-width:660px}
+.doc-sec{animation:rise .34s cubic-bezier(.2,.75,.3,1) both}
+.doc-sec h3{margin:0 0 6px;font-size:23px;font-weight:800;letter-spacing:-.02em;
+color:var(--ink)}
+.doc-sec h4{margin:28px 0 7px;font-size:13.5px;font-weight:800;color:var(--ink);
+letter-spacing:.01em}
+.doc-sec p{margin:0 0 13px;color:var(--ink-2);font-size:14.5px}
+.doc-sec .lead{font-size:16px;color:var(--ink-2);margin-bottom:22px;line-height:1.6}
+.doc-sec b{color:var(--ink);font-weight:700}
+.doc-sec code{background:var(--surface);border-radius:7px;padding:2px 8px;
 font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
 white-space:nowrap;box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a))}
+
+.callout{background:var(--baby-wash);border-radius:14px;padding:15px 17px;
+margin:0 0 22px;font-size:14px;color:var(--ink-2);
+border-left:3px solid var(--baby-deep)}
+.callout b{color:var(--ink)}
+
 .pill{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;
-padding:4px 11px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
-#diagout{background:var(--surface);border-radius:14px;padding:16px;
+padding:4px 11px;border-radius:999px;background:var(--surface);color:var(--ink-2);
+box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a));white-space:nowrap}
+button.solid{background:var(--surface);color:var(--ink);
+box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a))}
+button.solid:hover{background:var(--baby-wash);color:var(--baby-ink)}
+
+#diagout{background:var(--surface);border-radius:14px;padding:16px;margin:14px 0 0;
 font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.6;
 color:var(--ink-2);max-height:320px;overflow:auto;user-select:all;
 box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a)),
 0 10px 26px -20px rgb(var(--shad) / var(--shad-b))}
-.steps{padding-left:22px;margin:0;color:var(--ink-2)}
-.steps li{margin-bottom:12px}
-table.ref{border-collapse:collapse;width:100%}
-table.ref td{border-top:1px solid var(--line-2);padding:11px 14px 11px 0;
+.steps{padding-left:20px;margin:0 0 13px;color:var(--ink-2);font-size:14.5px}
+.steps li{margin-bottom:11px}
+table.ref{border-collapse:collapse;width:100%;font-size:14px}
+table.ref td{border-top:1px solid var(--line-2);padding:12px 14px 12px 0;
 vertical-align:top;color:var(--ink-2)}
-table.ref td:first-child{width:36%}
+table.ref td:first-child{width:40%}
 table.ref tr:first-child td{border-top:none}
+
+/* stack the nav into a scrollable row when the window is narrow */
+@media (max-width:860px){
+  .doc{grid-template-columns:1fr;gap:18px}
+  .doc-nav{position:static;flex-direction:row;overflow-x:auto;padding-bottom:4px;
+  gap:4px}
+  .doc-link{white-space:nowrap;flex:none}
+  .doc-link.on::before{display:none}
+}
 
 /* -------------------------------------------------------------- keyframes */
 @keyframes rise{from{opacity:0;transform:translateY(12px) scale(.99)}
@@ -1213,89 +1257,200 @@ to{opacity:1;transform:none}}
 <main id="out"><div class="empty">loading&hellip;</div></main>
 
 <main id="help" hidden>
-  <h2>Getting started</h2>
-  <ol class="steps">
-    <li>Start VALORANT and log in as usual. valskins reads its identity from the
-      Riot client on this PC, so <b>there is nothing to log into here</b> &mdash; and
-      any tool that asks for your Riot password is trying to steal it.</li>
-    <li>Open valskins any time before or during a match. It reconnects on its own.</li>
-    <li>Queue up. Agent select fills in your teammates; every weapon skin appears
-      the instant round&nbsp;1 starts.</li>
-  </ol>
+<div class="doc">
+  <nav class="doc-nav" id="docnav">
+    <button class="doc-link on" onclick="setSection('start')" data-sec="start">Getting started</button>
+    <button class="doc-link" onclick="setSection('roster')" data-sec="roster">Reading the roster</button>
+    <button class="doc-link" onclick="setSection('status')" data-sec="status">Status meanings</button>
+    <button class="doc-link" onclick="setSection('share')" data-sec="share">Second screen</button>
+    <button class="doc-link" onclick="setSection('trouble')" data-sec="trouble">Troubleshooting</button>
+    <button class="doc-link" onclick="setSection('safety')" data-sec="safety">Safety &amp; privacy</button>
+    <button class="doc-link" onclick="setSection('internals')" data-sec="internals">Under the hood</button>
+  </nav>
 
-  <h2>What the status pill means</h2>
-  <table class="ref">
-    <tr><td><span class="pill wait"><span class="dot"></span>client not running</span></td>
-      <td>VALORANT isn't open yet, or you're still sitting on the login screen.</td></tr>
-    <tr><td><span class="pill wait"><span class="dot"></span>waiting for match</span></td>
-      <td>Connected and idle in the menus. This is the healthy resting state.</td></tr>
-    <tr><td><span class="pill live"><span class="dot"></span>agent select</span></td>
-      <td>Your team's names and agents are in. Skins aren't published by the game
-        until the match actually forms.</td></tr>
-    <tr><td><span class="pill live"><span class="dot"></span>live</span></td>
-      <td>Full roster with loadouts. The round score keeps updating.</td></tr>
-  </table>
+  <div class="doc-body">
+    <section class="doc-sec" id="sec-start">
+      <h3>Getting started</h3>
+      <p class="lead">valskins shows every weapon skin your teammates have equipped,
+        from the moment a match forms.</p>
 
-  <h2>Reading a card</h2>
-  <p>One row per weapon, skipping default skins. The coloured dot is rarity &mdash;
-    <b style="color:#3f88c5">Select</b>, <b style="color:#00806f">Deluxe</b>,
-    <b style="color:#c23f7e">Premium</b>, <b style="color:#cf6a26">Exclusive</b>,
-    <b style="color:#9a7500">Ultra</b> &mdash; and hovering it names the tier. The
-    smaller grey text after a skin is the chroma variant or gun buddy.
-    <b>show enemies</b> reveals the other team; their names respect the game's
-    incognito setting.</p>
-  <p>The <b>☾</b> button in the top right switches between the light and dark
-    themes, and remembers which you picked.</p>
+      <div class="callout">
+        <b>There is nothing to log into.</b> valskins reads who you are from the Riot
+        client already running on this PC. Any tool that asks for your Riot password
+        is trying to steal your account &mdash; this one never asks, and never could.
+      </div>
 
-  <h2>Watching on another device</h2>
-  <p>Click <b>watch on another device</b> and open the link on a Mac, phone or second
-    monitor &mdash; useful when VALORANT is fullscreen. Both screens stay live at once.
-    The link carries a token that changes every time valskins starts, so closing the
-    app kills every old link.</p>
-  <p>If this PC has more than one network adapter &mdash; ethernet plus Wi&#8209;Fi, or a
-    VPN installed &mdash; you'll get several links. Only one of them is reachable from
-    your other device, so work down the list. Wired and wireless on the same router
-    reach each other fine; a guest network won't.</p>
-  <p class="muted">Windows will ask about the firewall the first time. Allow it on
-    <b>private</b> networks &mdash; that prompt is what lets your other device connect.</p>
+      <h4>First run</h4>
+      <ol class="steps">
+        <li>Start VALORANT and log in as usual.</li>
+        <li>Open valskins. It says <b>waiting for match</b> once it's connected, which
+          is the healthy resting state.</li>
+        <li>Queue up. Agent select fills in names and agents; every skin appears the
+          instant round&nbsp;1 begins.</li>
+      </ol>
 
-  <h2>If something looks wrong</h2>
-  <table class="ref">
-    <tr><td><code>client not running</code> and it won't budge</td>
-      <td>Get past the Riot login screen. valskins can't see anything until the
-        client has a session.</td></tr>
-    <tr><td>Stuck on <code>waiting for match</code> during a real game</td>
-      <td>Region autodetect probably failed. Launch with
-        <code>valskins.exe --region na --shard na</code> (your region).</td></tr>
-    <tr><td><code>link is missing its token</code></td>
-      <td>You opened the share URL without the <code>?token=&hellip;</code> part.
-        Copy it again from the button above.</td></tr>
-    <tr><td><code>valskins unreachable</code> on the other device</td>
-      <td>Try the next address in the share list. Otherwise: Windows Firewall, or the
-        wired network is marked <b>Public</b> instead of Private (Settings &rarr;
-        Network &rarr; Ethernet), or the two devices aren't on the same router.</td></tr>
-    <tr><td>Names show as agents instead of riot&nbsp;ids</td>
-      <td>Those players are hidden by the game's incognito setting. Nothing to fix.</td></tr>
-    <tr><td>Everything empty right after a patch</td>
-      <td>These are undocumented endpoints and Riot moves them sometimes. Check for a
-        newer release.</td></tr>
-  </table>
+      <h4>Day to day</h4>
+      <p>Leave it open for the whole session &mdash; it reconnects on its own, survives
+        queue dodges and match changes, and costs almost nothing while you're in the
+        menus. Order doesn't matter either: start it before or after VALORANT.</p>
+    </section>
 
-  <h2>Still stuck?</h2>
-  <p>Grab the diagnostics and paste them wherever you're getting help &mdash; status,
-    region, client version and the last handful of requests with their HTTP codes.
-    No tokens, no riot id, no puuid beyond its first few characters.</p>
-  <p><button onclick="copyDiag(this)">copy diagnostics</button>
-    <span class="muted" style="margin-left:8px">or open
-    <code>/api/diag</code></span></p>
-  <pre id="diagout" hidden></pre>
+    <section class="doc-sec" id="sec-roster" hidden>
+      <h3>Reading the roster</h3>
+      <p class="lead">One card per player, one row per weapon, default skins hidden.</p>
 
-  <h2>What it does and doesn't do</h2>
-  <p>It calls the same endpoints the game client calls, plus a public asset site for
-    skin names and icons. It is read&#8209;only: no game memory, no injection, nothing
-    written anywhere, and deliberately <b>not</b> an overlay &mdash; it's an ordinary
-    window you alt&#8209;tab to, because drawing on top of the game is the part that
-    carries real risk. Unofficial and not endorsed by Riot Games.</p>
+      <h4>The dot</h4>
+      <p>The coloured dot on each row is the skin's rarity &mdash;
+        <b style="color:#3f88c5">Select</b>, <b style="color:#00806f">Deluxe</b>,
+        <b style="color:#c23f7e">Premium</b>, <b style="color:#cf6a26">Exclusive</b>,
+        <b style="color:#9a7500">Ultra</b>. Hover it and it names the tier.</p>
+
+      <h4>Names and variants</h4>
+      <p>The smaller grey text after a skin is its chroma variant or the gun buddy
+        attached to it. Your own card is outlined and tagged <b>you</b>.</p>
+
+      <h4>The other team</h4>
+      <p><b>show enemies</b> reveals their loadouts too. Names respect the game's
+        incognito setting, so hidden players show as their agent instead.</p>
+
+      <h4>Weapons shown</h4>
+      <p>Everything a player owns a skin for, ordered Vandal, Phantom, Operator,
+        Sheriff, knife, then the rest. Collectors get tall cards.</p>
+    </section>
+
+    <section class="doc-sec" id="sec-status" hidden>
+      <h3>What the status means</h3>
+      <p class="lead">The dot and label at the top of the window say exactly where in
+        the chain things are.</p>
+      <table class="ref">
+        <tr><td><span class="pill"><span class="dot" style="background:var(--amber)"></span>riot client not running</span></td>
+          <td>VALORANT isn't open, or you're still on the login screen.</td></tr>
+        <tr><td><span class="pill"><span class="dot" style="background:var(--amber)"></span>waiting for VALORANT</span></td>
+          <td>The Riot launcher is up but the game itself isn't. A launcher-only
+            session can't see matches.</td></tr>
+        <tr><td><span class="pill"><span class="dot" style="background:var(--amber)"></span>waiting for match</span></td>
+          <td>Connected and idle in the menus. Everything is working.</td></tr>
+        <tr><td><span class="pill"><span class="dot" style="background:var(--mint)"></span>agent select</span></td>
+          <td>Names and agents are in. The game doesn't publish skins until the match
+            actually forms.</td></tr>
+        <tr><td><span class="pill"><span class="dot" style="background:var(--mint)"></span>live</span></td>
+          <td>Full roster with loadouts. The round score keeps updating.</td></tr>
+        <tr><td><span class="pill"><span class="dot" style="background:var(--rose)"></span>riot rejected us</span></td>
+          <td>A request was refused. It retries by itself; see Troubleshooting.</td></tr>
+        <tr><td><span class="pill"><span class="dot" style="background:var(--rose)"></span>network problem</span></td>
+          <td>A host couldn't be reached at all. The message names which one.</td></tr>
+      </table>
+    </section>
+
+    <section class="doc-sec" id="sec-share" hidden>
+      <h3>Watching on a second screen</h3>
+      <p class="lead">Useful when VALORANT is fullscreen: read the roster on a laptop,
+        phone or second monitor while you play.</p>
+
+      <h4>How</h4>
+      <p>Click <b>watch on another device</b> and open the link it gives you. Both
+        screens stay live at once. The link carries a token that changes every time
+        valskins starts, so closing the app invalidates every old link.</p>
+
+      <h4>If you get several links</h4>
+      <p>A PC with more than one network adapter &mdash; ethernet plus Wi&#8209;Fi, or a
+        VPN installed &mdash; has several addresses and only one is reachable from your
+        other device. They're listed best guess first; work down the list.</p>
+
+      <h4>When it won't connect</h4>
+      <p>Wired and wireless reach each other fine on the same router. A guest network
+        won't. Windows will ask about the firewall the first time &mdash; allow it on
+        <b>private</b> networks, and check that the network isn't marked <b>Public</b>
+        under Settings &rarr; Network, which blocks incoming connections regardless.</p>
+    </section>
+
+    <section class="doc-sec" id="sec-trouble" hidden>
+      <h3>Troubleshooting</h3>
+      <p class="lead">Most states resolve themselves within a few seconds. These are
+        the ones that don't.</p>
+      <table class="ref">
+        <tr><td><code>riot client not running</code> that won't budge</td>
+          <td>Get past the Riot login screen &mdash; there's no session to read until
+            you do.</td></tr>
+        <tr><td>Stuck on <code>waiting for match</code> during a real game</td>
+          <td>Region autodetect may have failed. Start it as
+            <code>valskins.exe --region na --shard na</code> for your region.</td></tr>
+        <tr><td><code>riot rejected us</code> that persists</td>
+          <td>It cycles through client version and user-agent combinations on its own.
+            If none are accepted, the diagnostics below say whether the refusal came
+            from Riot or from their edge.</td></tr>
+        <tr><td><code>network problem</code></td>
+          <td>The message names the host. If it's valorant-api.com, skin names come
+            from a cached copy and the app keeps working.</td></tr>
+        <tr><td><code>link is missing its token</code></td>
+          <td>The share URL was opened without its <code>?token=</code> part. Copy it
+            again.</td></tr>
+        <tr><td>Names show as agents</td>
+          <td>Those players are hidden by the game's incognito setting. Nothing to
+            fix.</td></tr>
+        <tr><td>Everything empty right after a patch</td>
+          <td>These endpoints are undocumented and Riot moves them. Check for a newer
+            release.</td></tr>
+      </table>
+
+      <h4>Diagnostics</h4>
+      <p>Status, region, both candidate client versions, the presence shape it found,
+        and the last 14 requests with their status codes. No tokens, no riot id, and
+        your puuid truncated to a few characters.</p>
+      <p><button class="solid" onclick="copyDiag(this)">copy diagnostics</button>
+        <span class="muted" style="margin-left:9px">or open <code>/api/diag</code></span></p>
+      <pre id="diagout" hidden></pre>
+    </section>
+
+    <section class="doc-sec" id="sec-safety" hidden>
+      <h3>Safety &amp; privacy</h3>
+      <p class="lead">What this does, and deliberately doesn't do.</p>
+
+      <h4>Read-only</h4>
+      <p>It calls the same endpoints the game client calls, plus a public asset site
+        for skin names and icons. No game memory is read, nothing is injected, and
+        nothing is written anywhere.</p>
+
+      <h4>Not an overlay</h4>
+      <p>It's an ordinary window you alt&#8209;tab to. Drawing on top of the game is
+        the part that carries real risk, so it doesn't.</p>
+
+      <h4>Your data stays here</h4>
+      <p>Everything is fetched by this PC and shown on this PC. Nothing is uploaded,
+        no account is created, no telemetry is sent. The second-screen link only
+        works on your own network, only with its token, and only while the app is
+        open.</p>
+
+      <h4>The honest caveat</h4>
+      <p>This is unofficial software using undocumented endpoints, and it is not
+        endorsed by Riot Games. A patch can break it at any time.</p>
+    </section>
+
+    <section class="doc-sec" id="sec-internals" hidden>
+      <h3>Under the hood</h3>
+      <p class="lead">The chain, in order, for anyone curious or debugging.</p>
+      <ol class="steps">
+        <li>The Riot client's <b>lockfile</b> gives a local port and password.</li>
+        <li>The local <b>entitlements</b> endpoint returns an access token, an
+          entitlements JWT and your puuid.</li>
+        <li>Region and shard come from the <code>glz-</code> URL in the game's own
+          <b>ShooterGame.log</b>.</li>
+        <li>The client version comes from that log too &mdash; it beats the public API,
+          which can lag a patch by hours.</li>
+        <li>Local <b>presence</b> reports the phase (menus, agent select, in game),
+          the map and the live score, so the remote endpoints are only touched when
+          the phase changes.</li>
+        <li><b>pregame</b> or <b>core-game</b> returns the roster and teams.</li>
+        <li><b>loadouts</b> returns equipped skin uuids for all ten players.</li>
+        <li>The <b>name service</b> turns puuids into riot ids, and
+          valorant-api.com turns skin uuids into names, rarities and icons.</li>
+      </ol>
+      <p>Skin uuids resolve by looking every socket id up in a prebuilt
+        skin/level/chroma index, rather than trusting fixed socket uuids that Riot
+        occasionally reshuffles.</p>
+    </section>
+  </div>
+</div>
 </main>
 <script>
 let showEnemies = false, last = 0, lastSig = '', lastScore = '';
@@ -1322,6 +1477,17 @@ function toggleTheme(){
   const next = currentTheme() === 'dark' ? 'light' : 'dark';
   try{ localStorage.setItem('valskins.theme', next); }catch(e){}
   applyTheme(next);
+}
+
+function setSection(id){
+  document.querySelectorAll('.doc-sec').forEach(function(sec){
+    sec.hidden = sec.id !== 'sec-' + id;
+  });
+  document.querySelectorAll('.doc-link').forEach(function(a){
+    a.className = 'doc-link' + (a.dataset.sec === id ? ' on' : '');
+  });
+  document.querySelector('.doc-body').scrollIntoView({block:'nearest'});
+  try{ localStorage.setItem('valskins.section', id); }catch(e){}
 }
 
 function setView(v){
@@ -1466,6 +1632,10 @@ async function refresh(force){
 let storedTheme = null;
 try{ storedTheme = localStorage.getItem('valskins.theme'); }catch(e){}
 applyTheme(storedTheme || currentTheme());
+
+let storedSection = null;
+try{ storedSection = localStorage.getItem('valskins.section'); }catch(e){}
+setSection(storedSection || 'start');
 
 // First launch lands on the instructions; after that it remembers your last tab.
 let storedView = null;
