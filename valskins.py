@@ -137,7 +137,9 @@ def http_json(url, method="GET", headers=None, body=None, ctx=None, timeout=15,
         if insecure_retry and isinstance(e.reason, ssl.SSLError):
             log(f"warning: TLS verify failed for {url} - retrying unverified")
             return http_json(url, method, headers, body, ctx=INSECURE, timeout=timeout)
-        raise
+        host = urllib.parse.urlsplit(url).netloc
+        RECENT.append(f"ERR {method} {host} [{e.reason}]")
+        raise NetworkError(host, e.reason) from None
 
 
 def lan_ips():
@@ -184,6 +186,19 @@ def lan_ip():
 
 
 # ---------------------------------------------------------------- riot client
+
+class NetworkError(Exception):
+    """A host couldn't be reached at all - DNS, no route, TLS refused. Worth
+    distinguishing from an HTTP error, because the fix is on this machine."""
+
+    def __init__(self, host, reason):
+        self.host = host
+        self.reason = reason
+        dns = "getaddrinfo" in str(reason) or "11001" in str(reason)
+        hint = ("DNS couldn't resolve it - check a VPN, an adblocker or a DNS "
+                "filter." if dns else "Check the connection.")
+        super().__init__(f"Can't reach {host}. {hint}")
+
 
 class RiotAuthError(Exception):
     """Something local is wrong: no lockfile, not logged in, no session."""
@@ -321,8 +336,13 @@ class Auth:
             return None
 
     def _api_version(self):
-        status, data = http_json("https://valorant-api.com/v1/version",
-                                 insecure_retry=True)
+        """Optional second opinion - never fatal, the log value is primary."""
+        try:
+            status, data = http_json("https://valorant-api.com/v1/version",
+                                     insecure_retry=True)
+        except NetworkError as e:
+            log(f"warning: {e}")
+            return None
         if status == 200 and data:
             return data["data"]["riotClientVersion"]
         return None
@@ -415,22 +435,39 @@ CATALOG_SOURCES = {
 def build_catalog(cache_path):
     """Index every skin / skin level / chroma uuid so loadout ids resolve."""
     raw = {}
+    fallback = None
     if cache_path and os.path.exists(cache_path):
-        age = time.time() - os.path.getmtime(cache_path)
-        if age < 24 * 3600:
-            try:
-                with open(cache_path, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-            except Exception:
-                raw = {}
+        # Skins change on patch days, not hourly - a stale cache beats no app,
+        # so age only decides whether to refresh, never whether to use it.
+        stale = time.time() - os.path.getmtime(cache_path) > 24 * 3600
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cached = json.load(f)
+            if set(cached) == set(CATALOG_SOURCES):
+                if not stale:
+                    raw = cached
+                else:
+                    raw, fallback = {}, cached
+        except Exception:
+            raw = {}
     if set(raw) != set(CATALOG_SOURCES):
         raw = {}
-        for key, url in CATALOG_SOURCES.items():
-            status, data = http_json(url, timeout=30, insecure_retry=True)
-            if status != 200 or not data:
-                raise RuntimeError(f"valorant-api.com fetch failed for {key} (HTTP {status})")
-            raw[key] = data["data"]
-        if cache_path:
+        try:
+            for key, url in CATALOG_SOURCES.items():
+                status, data = http_json(url, timeout=30, insecure_retry=True)
+                if status != 200 or not data:
+                    raise RuntimeError(
+                        f"valorant-api.com fetch failed for {key} (HTTP {status})")
+                raw[key] = data["data"]
+        except (NetworkError, RuntimeError):
+            # An expired cache is still far better than refusing to start.
+            if fallback:
+                log("warning: couldn't refresh the skin catalog - using the "
+                    "cached copy")
+                raw = fallback
+            else:
+                raise
+        if cache_path and raw is not fallback:
             try:
                 with open(cache_path, "w", encoding="utf-8") as f:
                     json.dump(raw, f)
@@ -542,12 +579,20 @@ class Collector(threading.Thread):
             self._state.update(kw, updated=time.time())
 
     def run(self):
-        try:
-            self.catalog = build_catalog(self.args.cache)
-            log(f"catalog ready: {len(self.catalog['skins'])} skins")
-        except Exception as e:
-            self._set(status="error", message=f"Asset catalog failed: {e}")
-            return
+        # Keep trying rather than dying: a DNS blip at launch used to leave the
+        # app permanently stuck on an error with no way back but a restart.
+        attempt = 0
+        while not self.catalog:
+            try:
+                self.catalog = build_catalog(self.args.cache)
+                log(f"catalog ready: {len(self.catalog['skins'])} skins")
+            except Exception as e:
+                attempt += 1
+                self._set(status="error", players=[],
+                          message=f"{e} Retrying... (attempt {attempt})")
+                log(f"catalog attempt {attempt} failed: {e}")
+                self._wake.wait(min(10 * attempt, 60))
+                self._wake.clear()
         if self.args.demo:
             self._set(**demo_state(self.catalog))
             return
@@ -579,6 +624,8 @@ class Collector(threading.Thread):
                     if e.status == 401:
                         authed = False   # worth a fresh token before giving up
                     self._set(status="api_error", message=str(e), players=[])
+            except NetworkError as e:
+                self._set(status="offline", players=[], message=str(e))
             except Exception as e:
                 authed = False
                 self._set(status="error", message=f"{type(e).__name__}: {e}")
@@ -1164,7 +1211,7 @@ function render(s){
   txt.textContent = {in_game:'live', pregame:'agent select', idle:'waiting for match',
                      starting:'starting', no_client:'riot client not running',
                      waiting_game:'waiting for VALORANT', api_error:'riot rejected us',
-                     error:'error'}[s.status] || s.status;
+                     offline:'network problem', error:'error'}[s.status] || s.status;
   const bits = [];
   if(s.map) bits.push(s.map);
   if(s.mode) bits.push(s.mode);
