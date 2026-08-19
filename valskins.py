@@ -519,6 +519,9 @@ def build_catalog(cache_path):
             # Melee has no shop entry; it gets its own column in the buy menu.
             "category": shop.get("categoryText") or "Melee",
             "cost": shop.get("cost") or 0,
+            # The plain weapon render, so a default skin still shows the gun -
+            # which is what the real buy menu does.
+            "icon": w.get("displayIcon"),
         }
         for skin in w.get("skins") or []:
             su = skin["uuid"].lower()
@@ -947,13 +950,14 @@ class Collector(threading.Thread):
                 icon = cat["chromas"][chroma]["icon"]
             if not icon and level:
                 icon = cat["levels"][level]["icon"]
-            icon = icon or skin["icon"]
             variant = cat["chromas"][chroma]["name"] if chroma else None
             if variant and variant.strip().lower() == skin["name"].strip().lower():
                 variant = None
             tier = cat["tiers"].get(skin["tier"], {})
             weapon_name = cat["weapon_names"].get(weapon_id.lower(), "Weapon")
             meta = cat["weapon_meta"].get(weapon_name, {})
+            # chroma art beats level art beats skin art beats the bare weapon
+            icon = icon or skin["icon"] or meta.get("icon")
             skins.append({
                 "weapon": weapon_name,
                 "category": meta.get("category", "Melee"),
@@ -1005,7 +1009,7 @@ def demo_state(cat):
             else:
                 skins.append({"weapon": weapon, "category": meta["category"],
                               "cost": meta["cost"], "skin": f"Standard {weapon}",
-                              "variant": None, "icon": None, "buddy": None,
+                              "variant": None, "icon": meta.get("icon"), "buddy": None,
                               "tier": None, "color": "#8b8b8b", "default": True})
         order = {w: k for k, w in enumerate(WEAPON_ORDER)}
         skins.sort(key=lambda x: (order.get(x["weapon"], 99), x["weapon"]))
@@ -1155,8 +1159,8 @@ transition:background .16s}
 filter:saturate(1.1) brightness(.94)}
 .w{width:58px;flex:none;font-size:9.5px;font-weight:700;color:var(--ink-3);
 text-transform:uppercase;letter-spacing:.09em}
-.thumb{width:74px;height:26px;flex:none;object-fit:contain;object-position:center;
-padding:1px 4px;border-radius:8px;background:var(--chip);
+.thumb{width:92px;height:32px;flex:none;object-fit:contain;object-position:center;
+padding:2px 5px;border-radius:9px;background:var(--chip);
 transition:transform .22s cubic-bezier(.2,.8,.3,1)}
 .name{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;
 white-space:nowrap;font-weight:600}
@@ -1170,6 +1174,7 @@ animation:rise .45s cubic-bezier(.2,.75,.3,1) both}
 letter-spacing:.04em;color:var(--ink-3);text-align:right;
 transition:background .18s, color .18s}
 .empty-row .name{font-weight:600}
+.empty-row .thumb{opacity:.38;filter:grayscale(1)}
 .thumb.blank{background:var(--surface-2)}
 
 /* ------------------------------------------------------- the loadout view */
@@ -1205,15 +1210,18 @@ transition:transform .16s cubic-bezier(.2,.8,.3,1), box-shadow .18s;
 animation:rise .32s cubic-bezier(.2,.75,.3,1) both}
 .tile:hover{transform:translateY(-2px);
 box-shadow:0 10px 22px -14px rgb(var(--shad) / var(--shad-b))}
-.tile img{width:100%;height:38px;object-fit:contain;object-position:center}
-.tile-blank{height:38px}
+.tile img{width:100%;height:56px;object-fit:contain;object-position:center;
+margin:3px 0 1px}
+.tile-blank{height:56px}
 /* skin name sits where the price does in the real buy menu */
 .tile-skin{font-size:11.5px;font-weight:700;color:var(--ink);text-align:right;
 overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tile-weapon{font-size:9.5px;font-weight:800;letter-spacing:.1em;
 text-transform:uppercase;color:var(--ink-3);text-align:right}
-.tile.std{border-top-color:var(--line-2);opacity:.62}
+.tile.std{border-top-color:var(--line-2)}
+.tile.std img{opacity:.4;filter:grayscale(1)}
 .tile.std .tile-skin{color:var(--ink-3);font-weight:600}
+.tile.std .tile-weapon{color:var(--ink-3)}
 
 @media (max-width:1000px){
   .shop-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -1648,11 +1656,14 @@ function renderShare(urls){
 const HEADLINE = ['Vandal', 'Phantom', 'Operator', 'Sheriff', 'Melee'];
 
 function skinRow(s, weapon){
-  if(!s) return `
+  // A weapon left on its default skin still shows the gun, greyed - same
+  // treatment as the loadout view, so the five rows always read as five guns.
+  if(!s || s.default) return `
     <div class="row empty-row">
       <span class="pip" style="background:var(--line-2)"></span>
       <div class="w">${esc(weapon)}</div>
-      <div class="thumb blank"></div>
+      ${s && s.icon ? `<img class="thumb" src="${esc(s.icon)}" loading="lazy" ${FALLBACK}>`
+                    : '<div class="thumb blank"></div>'}
       <div class="name muted">standard</div>
     </div>`;
   return `
@@ -1668,7 +1679,7 @@ function skinRow(s, weapon){
 function card(p){
   const owned = (p.skins || []).filter(s => !s.default);
   const byWeapon = {};
-  owned.forEach(s => byWeapon[s.weapon] = s);
+  (p.skins || []).forEach(s => byWeapon[s.weapon] = s);
   const rows = HEADLINE.map(w => skinRow(byWeapon[w], w)).join('');
   const extra = owned.filter(s => !HEADLINE.includes(s.weapon)).length;
   const waiting = p.skins.length === 0 && p.locked !== undefined;
