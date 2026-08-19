@@ -68,12 +68,17 @@ def http_json(url, method="GET", headers=None, body=None, ctx=None, timeout=15,
         req.add_header("Content-Type", "application/json")
     for k, v in (headers or {}).items():
         req.add_header(k, v)
-    def note(status):
+    def note(status, payload=None):
         parsed = urllib.parse.urlsplit(url)
         host = parsed.netloc.split(":")[0]
         # Collapse uuids so the log stays readable and puuid-free.
         path = re.sub(r"/[0-9a-fA-F-]{30,}", "/{id}", parsed.path)
-        RECENT.append(f"{status} {method} {host}{path}")
+        why = ""
+        if status >= 400 and isinstance(payload, dict):
+            code = payload.get("errorCode") or payload.get("message")
+            if code:
+                why = f" [{str(code)[:60]}]"
+        RECENT.append(f"{status} {method} {host}{path}{why}")
 
     try:
         with urllib.request.urlopen(req, context=ctx, timeout=timeout) as r:
@@ -82,11 +87,12 @@ def http_json(url, method="GET", headers=None, body=None, ctx=None, timeout=15,
             return r.status, (json.loads(raw) if raw else None)
     except urllib.error.HTTPError as e:
         raw = e.read()
-        note(e.code)
         try:
-            return e.code, json.loads(raw) if raw else None
+            body = json.loads(raw) if raw else None
         except Exception:
-            return e.code, None
+            body = None
+        note(e.code, body)
+        return e.code, body
     except urllib.error.URLError as e:
         # Machines with an unconfigured cert store can't verify valorant-api.com.
         # Only the public, read-only asset URLs get the insecure retry.
@@ -413,6 +419,7 @@ class Collector(threading.Thread):
                        "players": [], "updated": time.time()}
         self._match_id = None
         self._probe = 0
+        self._presence_debug = {}
         self._wake = threading.Event()
 
     # -- public
@@ -441,6 +448,7 @@ class Collector(threading.Thread):
             "catalog_skins": len(self.catalog["skins"]) if self.catalog else 0,
             "players": len(st.get("players") or []),
             "platform": f"{sys.platform} python {sys.version.split()[0]}",
+            "presence": dict(self._presence_debug),
             "recent_requests": list(RECENT),
         }
 
@@ -529,15 +537,32 @@ class Collector(threading.Thread):
         base, headers = self.auth.local
         status, data = http_json(f"{base}/chat/v4/presences", headers=headers,
                                  ctx=INSECURE, timeout=5)
+        # Record why this failed, if it did - "presence came back empty" has
+        # several possible causes and guessing between them wastes a release.
+        dbg = self._presence_debug = {"http": status}
         if status != 200 or not data:
             return None
-        for p in data.get("presences") or []:
-            if p.get("puuid") == self.auth.puuid and p.get("private"):
-                try:
-                    return json.loads(base64.b64decode(p["private"]))
-                except Exception:
-                    return None
-        return None
+        entries = data.get("presences") or []
+        dbg["count"] = len(entries)
+        mine = [p for p in entries if p.get("puuid") == self.auth.puuid]
+        dbg["own_entry"] = bool(mine)
+        dbg["products"] = sorted({p.get("product") for p in entries
+                                  if p.get("product")})
+        if not mine:
+            return None
+        p = mine[0]
+        dbg["own_product"] = p.get("product")
+        dbg["has_private"] = bool(p.get("private"))
+        if not p.get("private"):
+            return None
+        try:
+            blob = json.loads(base64.b64decode(p["private"]))
+        except Exception as e:
+            dbg["decode_error"] = f"{type(e).__name__}"
+            return None
+        dbg["blob_keys"] = sorted(blob)[:24]
+        dbg["loop_state"] = blob.get("sessionLoopState")
+        return blob
 
     def _ingame(self, ctx, probe=False):
         a = self.auth
