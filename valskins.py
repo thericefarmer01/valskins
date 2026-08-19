@@ -1127,7 +1127,7 @@ main{padding:24px 22px 40px;max-width:1440px;margin:0 auto}
 h2{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);
 margin:0 0 14px;font-weight:700}
 h2:not(:first-child){margin-top:30px}
-.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(370px,1fr))}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(430px,1fr))}
 
 /* No border - elevation alone, which is what reads as "light" rather than
    "dark theme with the colours flipped". */
@@ -1152,7 +1152,7 @@ font-weight:700;color:var(--mine-ink);background:var(--mine-wash);padding:4px 9p
 border-radius:999px}
 
 .rows{padding:0 8px 10px}
-.row{display:flex;align-items:center;gap:12px;padding:7px 9px;border-radius:11px;
+.row{display:flex;align-items:center;gap:12px;padding:6px 9px;border-radius:11px;
 transition:background .16s}
 .row:hover{background:var(--baby-wash)}
 .row:hover .thumb{transform:scale(1.05)}
@@ -1161,8 +1161,9 @@ transition:background .16s}
 filter:saturate(1.1) brightness(.94)}
 .w{width:58px;flex:none;font-size:9.5px;font-weight:700;color:var(--ink-3);
 text-transform:uppercase;letter-spacing:.09em}
-.thumb{width:74px;height:26px;flex:none;object-fit:contain;object-position:center;
-padding:1px 4px;border-radius:8px;background:var(--art);
+.thumb{width:132px;height:44px;flex:none;object-fit:contain;object-position:center;
+padding:2px 6px;border-radius:9px;background:var(--art);
+border:1px solid var(--art-line);
 transition:transform .22s cubic-bezier(.2,.8,.3,1)}
 .name{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;
 white-space:nowrap;font-weight:600}
@@ -1211,11 +1212,11 @@ transition:transform .16s cubic-bezier(.2,.8,.3,1), box-shadow .18s;
 animation:rise .32s cubic-bezier(.2,.75,.3,1) both}
 .tile:hover{transform:translateY(-2px);
 box-shadow:0 10px 22px -14px rgb(var(--shad) / var(--shad-b))}
-.tile-art{background:var(--art);border-radius:9px;padding:5px 7px;margin:4px 0 2px;
+.tile-art{background:var(--art);border-radius:9px;padding:6px 8px;margin:5px 0 3px;
 border:1px solid var(--art-line)}
-.tile-art img{width:100%;height:42px;object-fit:contain;object-position:center;
+.tile-art img{width:100%;height:60px;object-fit:contain;object-position:center;
 display:block}
-.tile-blank{height:42px;opacity:.3}
+.tile-blank{height:60px;opacity:.3}
 /* skin name sits where the price does in the real buy menu */
 .tile-skin{font-size:11.5px;font-weight:700;color:var(--ink);text-align:right;
 overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
