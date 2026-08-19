@@ -259,6 +259,7 @@ class Auth:
         self.version_log = self.version_api = None
         self.variants = []
         self.variant = 0
+        self.good_variant = None
 
     def refresh(self):
         path = lockfile_path(self.args.lockfile)
@@ -294,6 +295,10 @@ class Auth:
             self._detect_client_version()
         if not self.variants:
             self.build_variants()
+        else:
+            # Fresh token after an expiry: the combination didn't change, so
+            # don't carry over a rotation that a stale token provoked.
+            self.reset_variant()
         return self
 
     def _detect_region(self, basic):
@@ -366,14 +371,35 @@ class Auth:
         versions = [v for v in (self.version_log, self.version_api) if v]
         self.variants = [(v, ua) for v in versions for ua in UA_CANDIDATES]
         self.variant = 0
+        self.good_variant = None
+
+    def _apply_variant(self):
+        self.client_version = self.variants[self.variant][0]
+
+    def confirm_variant(self):
+        """Riot accepted a request with the current combination. Remember it, so
+        a later hiccup - an expired token, say - can't walk us off it."""
+        if self.good_variant != self.variant:
+            self.good_variant = self.variant
+            log(f"variant {self.variant + 1}/{len(self.variants)} accepted")
+
+    def reset_variant(self):
+        """Go back to the combination known to work, or to the first one."""
+        target = self.good_variant if self.good_variant is not None else 0
+        if self.variant != target:
+            self.variant = target
+            self._apply_variant()
+            log(f"back to variant {target + 1}/{len(self.variants)}")
 
     def next_variant(self):
-        """Advance to the next combination. False once they're exhausted."""
+        """Advance to the next combination. False once they're exhausted, and
+        rewinds rather than leaving us parked on one that doesn't work."""
         if self.variant + 1 >= len(self.variants):
+            self.reset_variant()
             return False
         self.variant += 1
+        self._apply_variant()
         version, ua = self.variants[self.variant]
-        self.client_version = version
         log(f"retrying as variant {self.variant + 1}/{len(self.variants)}: "
             f"{version}, ua={ua or 'urllib default'}")
         return True
@@ -614,17 +640,9 @@ class Collector(threading.Thread):
             except RiotApiError as e:
                 self._match_id = None
                 log(f"api error: {e}")
-                # A 400 here is nearly always a client version that has drifted
-                # from the installed build; the game's own log is authoritative.
-                if e.status in (400, 403) and self.auth.next_variant():
-                    a = self.auth
-                    self._set(status="idle",
-                              message=f"Refused - trying combination "
-                                      f"{a.variant + 1} of {len(a.variants)}.")
-                else:
-                    if e.status == 401:
-                        authed = False   # worth a fresh token before giving up
-                    self._set(status="api_error", message=str(e), players=[])
+                self._set(**self._on_refusal(e))
+                if e.status == 401:
+                    authed = False       # token probably expired; get a new one
             except NetworkError as e:
                 self._set(status="offline", players=[], message=str(e))
             except Exception as e:
@@ -678,21 +696,30 @@ class Collector(threading.Thread):
                           message="Waiting for a match. (Presence unreadable, so "
                                   "this is polling the match endpoints directly.)")
             else:
-                # Both endpoints refused us. Same treatment as the non-probe
-                # path: rotate version/user-agent until something is accepted.
-                a = self.auth
-                if a.next_variant():
-                    self._set(status="idle", players=[], score=None,
-                              message=f"Riot refused the request - trying "
-                                      f"combination {a.variant + 1} of "
-                                      f"{len(a.variants)}.")
-                else:
-                    self._set(status="waiting_game", phase="unknown", players=[],
-                              score=None,
-                              message="Riot refused every version/user-agent "
-                                      "combination. Open the diagnostics in "
-                                      "how to use - the last_remote_error block "
-                                      "says who rejected it.")
+                # Both endpoints refused us - same policy as the non-probe path.
+                self._set(**self._on_refusal())
+
+    def _on_refusal(self, err=None):
+        """What to do when Riot turns a request away.
+
+        Rotating combinations is only the right move while we've never had one
+        accepted. Once a combination is known good, a refusal is a passing
+        problem - an expired token, a Riot blip - and rotating away from a
+        working setup makes it permanent until the app is restarted.
+        """
+        a = self.auth
+        status = getattr(err, "status", 403)
+        if status == 401:
+            return {"status": "api_error", "players": [],
+                    "message": "Session expired - getting a new token."}
+        if a.good_variant is None and a.next_variant():
+            return {"status": "idle", "players": [], "score": None,
+                    "message": f"Riot refused the request - trying combination "
+                               f"{a.variant + 1} of {len(a.variants)}."}
+        a.reset_variant()
+        detail = f" ({err})" if err else ""
+        return {"status": "api_error", "players": [],
+                "message": f"Riot refused that request{detail} Retrying."}
 
     def _presence(self):
         base, headers = self.auth.local
@@ -740,6 +767,9 @@ class Collector(threading.Thread):
             if probe:
                 return "denied"
             raise RiotApiError("core-game/players", status, data)
+        # Anything other than a refusal means these headers are accepted - a 404
+        # here just means "not in a match", which is still a passing handshake.
+        a.confirm_variant()
         if status == 404 or not data or not data.get("MatchID"):
             return "none" if probe else False
         match_id = data["MatchID"]
@@ -783,6 +813,9 @@ class Collector(threading.Thread):
             if probe:
                 return "denied"
             raise RiotApiError("pregame/players", status, data)
+        # Anything other than a refusal means these headers are accepted - a 404
+        # here just means "not in a match", which is still a passing handshake.
+        a.confirm_variant()
         if status == 404 or not data or not data.get("MatchID"):
             return "none" if probe else False
         match_id = data["MatchID"]
