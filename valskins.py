@@ -996,158 +996,194 @@ def demo_state(cat):
 
 PAGE = r"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>valskins</title><style>
-/* ---------------------------------------------------------------- tokens */
+<title>valskins</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
 :root{
-  --cream:#fdf7ef; --cream-2:#f7ede0; --card:#fffdfa;
-  --ink:#2c3e50; --ink-soft:#71879b; --ink-faint:#9aabba;
-  --baby:#aadcf5; --baby-soft:#dcf1fb; --baby-deep:#5ab0dd; --baby-ink:#2b7fa8;
-  --line:#ecdfcd; --line-soft:#f3e9dc;
-  --mint:#63c9a2; --amber:#f2b34b; --rose:#ef7b7b;
-  --shad:22 60 90;
-  --r:16px;
+  /* light is the designed default; dark is a real theme, not an inversion */
+  --bg:#fbf6ee; --wash-a:#e9f4fb; --wash-b:#fdf0e3;
+  --surface:#ffffff; --surface-2:#f8f3ec; --chip:#eaf1f7;
+  --ink:#25333f; --ink-2:#5d7183; --ink-3:#93a4b2;
+  --line:#f0e7da; --line-2:#e7ebef;
+  --baby:#8fd0ee; --baby-deep:#3f9fd0; --baby-ink:#1f7ba7; --baby-wash:#e8f5fc;
+  --mint:#3fb489; --amber:#dd9a2e; --rose:#dc6a69;
+  --shad:30 60 85; --shad-a:.05; --shad-b:.16;
+  --r:18px;
 }
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121922; --wash-a:#172836; --wash-b:#1d2029;
+    --surface:#1a2330; --surface-2:#212c3a; --chip:#243040;
+    --ink:#e9eff5; --ink-2:#a2b5c4; --ink-3:#71879a;
+    --line:#25313e; --line-2:#25313e;
+    --baby:#79c6e9; --baby-deep:#4aa8d8; --baby-ink:#9bd9f3; --baby-wash:#1c2c39;
+    --mint:#57c79c; --amber:#e5b45f; --rose:#e58786;
+    --shad:0 0 0; --shad-a:.25; --shad-b:.45;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121922; --wash-a:#172836; --wash-b:#1d2029;
+  --surface:#1a2330; --surface-2:#212c3a; --chip:#243040;
+  --ink:#e9eff5; --ink-2:#a2b5c4; --ink-3:#71879a;
+  --line:#25313e; --line-2:#25313e;
+  --baby:#79c6e9; --baby-deep:#4aa8d8; --baby-ink:#9bd9f3; --baby-wash:#1c2c39;
+  --mint:#57c79c; --amber:#e5b45f; --rose:#e58786;
+  --shad:0 0 0; --shad-a:.25; --shad-b:.45;
+}
+
 *{box-sizing:border-box}
-[hidden]{display:none !important}   /* id rules below would otherwise win */
+[hidden]{display:none !important}
 
-body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
-color:var(--ink);background:var(--cream);
-background-image:radial-gradient(1100px 380px at 12% -8%, #eaf6fd 0%, transparent 70%),
-                 radial-gradient(900px 320px at 92% -4%, #fdf1e2 0%, transparent 65%)}
+body{margin:0;color:var(--ink);background:var(--bg);
+font:15px/1.55 Nunito,"Segoe UI Variable Text","Segoe UI",-apple-system,
+BlinkMacSystemFont,sans-serif;
+background-image:radial-gradient(1200px 420px at 8% -10%, var(--wash-a) 0%, transparent 68%),
+                 radial-gradient(980px 360px at 95% -6%, var(--wash-b) 0%, transparent 62%);
+background-attachment:fixed;
+transition:background-color .3s ease, color .3s ease}
 
-/* ---------------------------------------------------------------- header */
-header{position:sticky;top:0;z-index:5;display:flex;gap:12px;align-items:center;
-flex-wrap:wrap;padding:13px 20px;background:#fdf7efd9;backdrop-filter:blur(10px);
-border-bottom:1px solid var(--line)}
-header::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
-background:linear-gradient(90deg,var(--baby),var(--cream-2) 45%,var(--baby-soft))}
-h1{font-size:15px;margin:0;letter-spacing:.15em;text-transform:uppercase;
-color:var(--baby-ink);font-weight:700}
+/* -------------------------------------------------------------- app bar */
+/* Light UIs separate with space, not outlines - so: one hairline, no boxes. */
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:18px;
+flex-wrap:wrap;padding:14px 22px;background:color-mix(in srgb, var(--bg) 88%, transparent);
+backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+h1{font-size:17px;margin:0;font-weight:800;letter-spacing:-.02em;color:var(--ink);
+display:flex;align-items:center;gap:8px}
+h1::before{content:"";width:9px;height:9px;border-radius:50%;
+background:linear-gradient(140deg,var(--baby),var(--baby-deep))}
 
-.pill{font-size:12px;padding:4px 11px;border-radius:999px;background:#fff;
-border:1px solid var(--line);color:var(--ink-soft);transition:background .2s}
-.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:7px;
-vertical-align:1px}
-.live .dot{background:var(--mint)}
-.live .dot{animation:beat 1.9s ease-in-out infinite}
+.tabs{display:flex;gap:2px;padding:3px;background:var(--surface-2);border-radius:12px;
+flex:none}
+.tab{border:none;background:transparent;color:var(--ink-2);padding:6px 15px;
+border-radius:9px;font-weight:600;font-size:12.5px}
+.tab:hover{background:var(--surface);color:var(--ink);box-shadow:none;transform:none}
+.tab.on{background:var(--surface);color:var(--baby-ink);
+box-shadow:0 1px 3px rgb(var(--shad) / var(--shad-a))}
+.tab.on:hover{background:var(--surface)}
+
+.state{display:flex;align-items:baseline;gap:9px;min-width:0}
+.state b{font-weight:700;font-size:13px;color:var(--ink)}
+.state .meta{font-size:12.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;
+text-overflow:ellipsis}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;align-self:center;
+background:var(--ink-3)}
+.live .dot{background:var(--mint);animation:beat 2s ease-in-out infinite}
+.live b{color:var(--mint)}
 .wait .dot{background:var(--amber);animation:breathe 2.6s ease-in-out infinite}
 .bad .dot{background:var(--rose)}
-.live{background:#eefaf4;border-color:#c6ebdb;color:#2f7a5f}
-.bad{background:#fdf0f0;border-color:#f6d5d5;color:#b4504f}
+.bad b{color:var(--rose)}
 
-button{font:inherit;font-size:12px;padding:6px 12px;border-radius:10px;
-border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;
-transition:transform .14s cubic-bezier(.2,.8,.3,1), box-shadow .18s, background .18s,
-border-color .18s}
-button:hover{background:var(--baby-soft);border-color:var(--baby);
-box-shadow:0 3px 10px rgb(var(--shad) / .09);transform:translateY(-1px)}
-button:active{transform:translateY(0) scale(.98)}
+.actions{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none}
+button{font:inherit;font-weight:600;font-size:12.5px;padding:7px 13px;border-radius:10px;
+border:none;background:transparent;color:var(--ink-2);cursor:pointer;
+transition:background .16s, color .16s, transform .14s cubic-bezier(.2,.8,.3,1)}
+button:hover{background:var(--baby-wash);color:var(--baby-ink)}
+button:active{transform:scale(.97)}
+.icon{padding:7px 10px;font-size:14px;line-height:1}
+.age{font-size:11.5px;color:var(--ink-3);min-width:52px;text-align:right}
 
-.tabs{display:flex;margin-right:2px;background:#fff;border:1px solid var(--line);
-border-radius:12px;overflow:hidden;flex:none}
-.tab{border:none;border-radius:0;background:transparent;color:var(--ink-soft);
-padding:7px 15px;transform:none}
-.tab:hover{background:var(--baby-soft);color:var(--baby-ink);transform:none;box-shadow:none}
-.tab.on{background:linear-gradient(180deg,var(--baby),var(--baby-deep));color:#fff;
-font-weight:600}
-.tab.on:hover{background:linear-gradient(180deg,var(--baby),var(--baby-deep));color:#fff}
+/* ---------------------------------------------------------------- roster */
+main{padding:24px 22px 40px;max-width:1440px;margin:0 auto}
+h2{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);
+margin:0 0 14px;font-weight:700}
+h2:not(:first-child){margin-top:30px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(370px,1fr))}
 
-/* ------------------------------------------------------------------ body */
-main{padding:20px;max-width:1400px;margin:0 auto}
-h2{font-size:11.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);
-margin:24px 0 12px;display:flex;align-items:center;gap:10px}
-h2::after{content:"";flex:1;height:1px;background:var(--line-soft)}
-.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(390px,1fr))}
-
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
-overflow:hidden;box-shadow:0 1px 2px rgb(var(--shad) / .05),
-0 8px 22px -14px rgb(var(--shad) / .18);
-transition:transform .22s cubic-bezier(.2,.8,.3,1), box-shadow .22s;
+/* No border - elevation alone, which is what reads as "light" rather than
+   "dark theme with the colours flipped". */
+.card{background:var(--surface);border-radius:var(--r);overflow:hidden;
+box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a)),
+0 14px 32px -20px rgb(var(--shad) / var(--shad-b));
+transition:transform .24s cubic-bezier(.2,.8,.3,1), box-shadow .24s;
 animation:rise .5s cubic-bezier(.2,.75,.3,1) both;
 animation-delay:calc(var(--i,0) * 45ms)}
 .card:hover{transform:translateY(-3px);
-box-shadow:0 2px 4px rgb(var(--shad) / .06), 0 18px 34px -18px rgb(var(--shad) / .30)}
-.card.you{border-color:var(--baby);box-shadow:0 0 0 3px var(--baby-soft),
-0 10px 24px -16px rgb(var(--shad) / .25)}
+box-shadow:0 2px 4px rgb(var(--shad) / var(--shad-a)),
+0 26px 44px -24px rgb(var(--shad) / var(--shad-b))}
+.card.you{box-shadow:0 0 0 2px var(--baby),
+0 16px 34px -20px rgb(var(--shad) / var(--shad-b))}
 
-.who{display:flex;align-items:center;gap:11px;padding:12px 14px;
-background:linear-gradient(180deg,#fff,var(--cream));border-bottom:1px solid var(--line-soft)}
-.who img{width:36px;height:36px;border-radius:11px;background:var(--baby-soft);
-border:1px solid var(--line-soft)}
-.who b{font-size:14px}
-.who small{color:var(--ink-soft);display:block;font-size:11.5px}
-.tag{margin-left:auto;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
-color:var(--baby-ink);background:var(--baby-soft);padding:3px 8px;border-radius:999px}
+.who{display:flex;align-items:center;gap:12px;padding:15px 17px 13px}
+.who img{width:38px;height:38px;border-radius:12px;background:var(--chip)}
+.who b{font-size:14.5px;font-weight:700;letter-spacing:-.01em}
+.who small{color:var(--ink-3);display:block;font-size:11.5px;font-weight:600}
+.tag{margin-left:auto;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+font-weight:700;color:var(--baby-ink);background:var(--baby-wash);padding:4px 9px;
+border-radius:999px}
 
-.rows{padding:5px 0}
-.row{display:flex;align-items:center;gap:11px;padding:7px 14px;
+.rows{padding:0 8px 10px}
+.row{display:flex;align-items:center;gap:12px;padding:7px 9px;border-radius:11px;
 transition:background .16s}
-.row:hover{background:var(--baby-soft)}
-.row:hover .thumb{transform:scale(1.06) translateX(2px)}
-.w{width:62px;flex:none;font-size:10px;color:var(--ink-faint);text-transform:uppercase;
-letter-spacing:.07em}
-/* Skin renders are drawn for a dark game UI - many are near-white with
-   transparency, so they need a tinted chip behind them or they disappear. */
-.thumb{width:78px;height:26px;flex:none;object-fit:contain;object-position:center;
-padding:2px 4px;border-radius:7px;
-background:linear-gradient(140deg,#e7eff6,#d8e6f1);
-transition:transform .22s cubic-bezier(.2,.8,.3,1), box-shadow .2s}
-.row:hover .thumb{box-shadow:0 2px 8px rgb(var(--shad) / .12)}
+.row:hover{background:var(--baby-wash)}
+.row:hover .thumb{transform:scale(1.05)}
+/* A dot, not a full-height bar: bars are a dark-UI device. */
+.pip{width:7px;height:7px;border-radius:50%;flex:none;
+filter:saturate(1.1) brightness(.94)}
+.w{width:58px;flex:none;font-size:9.5px;font-weight:700;color:var(--ink-3);
+text-transform:uppercase;letter-spacing:.09em}
+.thumb{width:74px;height:26px;flex:none;object-fit:contain;object-position:center;
+padding:1px 4px;border-radius:8px;background:var(--chip);
+transition:transform .22s cubic-bezier(.2,.8,.3,1)}
 .name{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;
-white-space:nowrap;font-weight:500}
-.name span{color:var(--ink-soft);font-size:11.5px;font-weight:400;font-style:italic}
-/* Riot's tier colours are tuned for a dark UI; take a little brightness off so
-   the pale ones (Ultra gold) still register against cream. */
-.bar{width:4px;align-self:stretch;border-radius:3px;flex:none;
-filter:saturate(1.05) brightness(.9)}
-.muted{color:var(--ink-soft)}
-.empty{padding:64px 20px;text-align:center;color:var(--ink-soft);
+white-space:nowrap;font-weight:600}
+.name span{color:var(--ink-3);font-size:11.5px;font-weight:600;font-style:normal}
+.muted{color:var(--ink-3)}
+.empty{padding:72px 20px;text-align:center;color:var(--ink-3);font-weight:600;
 animation:rise .45s cubic-bezier(.2,.75,.3,1) both}
 
 /* ----------------------------------------------------------------- share */
-#sharebox{font-size:13px;padding:14px 20px;background:var(--baby-soft);
-border-bottom:1px solid #cfe9f6;color:var(--ink);animation:drop .3s ease both}
-.sharehead{margin-bottom:10px}
-#sharelist{display:flex;flex-direction:column;gap:7px;margin-bottom:10px}
+#sharebox{font-size:13px;padding:16px 22px;background:var(--baby-wash);
+border-bottom:1px solid var(--line);animation:drop .3s ease both}
+.sharehead{margin-bottom:11px;font-weight:600}
+#sharelist{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
 .sharerow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.sharerow code{background:#fff;border:1px solid #cfe9f6;border-radius:8px;
-padding:4px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-color:var(--baby-ink)}
-.sharerow .idx{width:74px;flex:none;font-size:10.5px;text-transform:uppercase;
-letter-spacing:.07em;color:var(--ink-soft)}
+.sharerow code{background:var(--surface);border-radius:9px;padding:5px 11px;
+font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
+color:var(--baby-ink);box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a))}
+.sharerow .idx{width:70px;flex:none;font-size:10px;text-transform:uppercase;
+letter-spacing:.09em;font-weight:700;color:var(--ink-3)}
+.sharerow button{background:var(--surface);
+box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a))}
 
 /* ------------------------------------------------------------------ help */
-#help{max-width:820px;font-size:14.5px;animation:rise .4s cubic-bezier(.2,.75,.3,1) both}
-#help h2:first-child{margin-top:6px}
-#help p{margin:0 0 12px;color:#43596d}
-#help b{color:var(--ink)}
-#help code{background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 7px;
-font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;white-space:nowrap}
-#diagout{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;
-font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.55;
-color:#4a6072;max-height:320px;overflow:auto;user-select:all;
-box-shadow:inset 0 1px 3px rgb(var(--shad) / .05)}
-.steps{padding-left:22px;margin:0}
-.steps li{margin-bottom:11px}
-table.ref{border-collapse:collapse;width:100%;margin-bottom:6px}
-table.ref td{border-top:1px solid var(--line-soft);padding:10px 12px 10px 0;
-vertical-align:top}
-table.ref td:first-child{width:37%;white-space:normal}
-table.ref .pill{white-space:nowrap;font-size:11.5px}
+#help{max-width:780px;font-size:14.5px;animation:rise .4s cubic-bezier(.2,.75,.3,1) both}
+#help h2{margin-top:32px}
+#help h2:first-child{margin-top:2px}
+#help p{margin:0 0 13px;color:var(--ink-2)}
+#help b{color:var(--ink);font-weight:700}
+#help code{background:var(--surface);border-radius:7px;padding:2px 8px;
+font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+white-space:nowrap;box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a))}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;
+padding:4px 11px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
+#diagout{background:var(--surface);border-radius:14px;padding:16px;
+font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.6;
+color:var(--ink-2);max-height:320px;overflow:auto;user-select:all;
+box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a)),
+0 10px 26px -20px rgb(var(--shad) / var(--shad-b))}
+.steps{padding-left:22px;margin:0;color:var(--ink-2)}
+.steps li{margin-bottom:12px}
+table.ref{border-collapse:collapse;width:100%}
+table.ref td{border-top:1px solid var(--line-2);padding:11px 14px 11px 0;
+vertical-align:top;color:var(--ink-2)}
+table.ref td:first-child{width:36%}
+table.ref tr:first-child td{border-top:none}
 
 /* -------------------------------------------------------------- keyframes */
 @keyframes rise{from{opacity:0;transform:translateY(12px) scale(.99)}
 to{opacity:1;transform:none}}
 @keyframes drop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
-@keyframes beat{0%,100%{box-shadow:0 0 0 0 rgb(99 201 162 / .55)}
-70%{box-shadow:0 0 0 7px rgb(99 201 162 / 0)}}
-@keyframes breathe{0%,100%{opacity:1}50%{opacity:.45}}
-@keyframes bump{0%{transform:scale(1)}35%{transform:scale(1.14)}100%{transform:scale(1)}}
-.bumped{animation:bump .45s cubic-bezier(.2,.8,.3,1)}
+@keyframes beat{0%,100%{box-shadow:0 0 0 0 rgb(63 180 137 / .5)}
+70%{box-shadow:0 0 0 7px rgb(63 180 137 / 0)}}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes bump{0%{transform:scale(1)}35%{transform:scale(1.13)}100%{transform:scale(1)}}
+.bumped{display:inline-block;animation:bump .45s cubic-bezier(.2,.8,.3,1)}
 
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation:none !important;transition:none !important}
-  .card:hover,button:hover{transform:none}
+  .card:hover{transform:none}
 }
 </style></head><body>
 <header>
@@ -1156,12 +1192,17 @@ to{opacity:1;transform:none}}
     <button onclick="setView('roster')" id="tab-roster" class="tab on">roster</button>
     <button onclick="setView('help')" id="tab-help" class="tab">how to use</button>
   </span>
-  <span id="status" class="pill wait"><span class="dot"></span><span id="statustext">connecting</span></span>
-  <span class="pill" id="meta"></span>
-  <button onclick="toggleEnemies()" id="enemybtn">show enemies</button>
-  <button onclick="refresh(true)">refresh</button>
-  <button onclick="share()" id="sharebtn" hidden>watch on another device</button>
-  <span class="pill muted" id="age"></span>
+  <span id="status" class="state wait">
+    <span class="dot"></span><b id="statustext">connecting</b>
+    <span class="meta" id="meta"></span>
+  </span>
+  <span class="actions">
+    <button onclick="toggleEnemies()" id="enemybtn">show enemies</button>
+    <button onclick="refresh(true)">refresh</button>
+    <button onclick="share()" id="sharebtn" hidden>watch on another device</button>
+    <span class="age" id="age"></span>
+    <button class="icon" id="themebtn" onclick="toggleTheme()" title="switch theme"></button>
+  </span>
 </header>
 <div id="sharebox" hidden>
   <div class="sharehead">Open one of these on your Mac or phone &mdash; this PC has more
@@ -1196,12 +1237,15 @@ to{opacity:1;transform:none}}
   </table>
 
   <h2>Reading a card</h2>
-  <p>One row per weapon, skipping default skins. The coloured bar is rarity:
+  <p>One row per weapon, skipping default skins. The coloured dot is rarity &mdash;
     <b style="color:#3f88c5">Select</b>, <b style="color:#00806f">Deluxe</b>,
     <b style="color:#c23f7e">Premium</b>, <b style="color:#cf6a26">Exclusive</b>,
-    <b style="color:#9a7500">Ultra</b>. Grey italics after a skin name is the chroma
-    variant or gun buddy. <b>show enemies</b> reveals the other team &mdash; their names
-    respect the game's incognito setting.</p>
+    <b style="color:#9a7500">Ultra</b> &mdash; and hovering it names the tier. The
+    smaller grey text after a skin is the chroma variant or gun buddy.
+    <b>show enemies</b> reveals the other team; their names respect the game's
+    incognito setting.</p>
+  <p>The <b>☾</b> button in the top right switches between the light and dark
+    themes, and remembers which you picked.</p>
 
   <h2>Watching on another device</h2>
   <p>Click <b>watch on another device</b> and open the link on a Mac, phone or second
@@ -1261,6 +1305,25 @@ function toggleEnemies(){ showEnemies = !showEnemies; document.getElementById('e
   showEnemies ? 'hide enemies' : 'show enemies'; lastSig = ''; render(window._s); }
 function esc(s){ return (s??'').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+// Three states: an explicit light or dark choice, or no choice at all - in which
+// case the OS setting decides and the button reflects whatever that resolves to.
+function currentTheme(){
+  const set = document.documentElement.getAttribute('data-theme');
+  if(set) return set;
+  return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  const b = document.getElementById('themebtn');
+  b.textContent = t === 'dark' ? '☀' : '☾';
+  b.title = t === 'dark' ? 'switch to light' : 'switch to dark';
+}
+function toggleTheme(){
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  try{ localStorage.setItem('valskins.theme', next); }catch(e){}
+  applyTheme(next);
+}
+
 function setView(v){
   document.getElementById('out').hidden = v !== 'roster';
   document.getElementById('help').hidden = v !== 'help';
@@ -1315,7 +1378,7 @@ function renderShare(urls){
 function card(p){
   const rows = p.skins.filter(s => !s.default).map(s => `
     <div class="row">
-      <div class="bar" style="background:${esc(s.color)}"></div>
+      <span class="pip" style="background:${esc(s.color)}" title="${esc(s.tier || '')}"></span>
       <div class="w">${esc(s.weapon)}</div>
       ${s.icon ? `<img class="thumb" src="${esc(s.icon)}" loading="lazy">` : '<div class="thumb"></div>'}
       <div class="name">${esc(s.skin)}${s.variant ? ` <span>${esc(s.variant)}</span>` : ''}${
@@ -1338,7 +1401,7 @@ function render(s){
   if(!s) return;
   window._s = s;
   const st = document.getElementById('status'), txt = document.getElementById('statustext');
-  st.className = 'pill ' + ({in_game:'live', pregame:'live', idle:'wait',
+  st.className = 'state ' + ({in_game:'live', pregame:'live', idle:'wait',
                              starting:'wait', waiting_game:'wait'}[s.status] || 'bad');
   txt.textContent = {in_game:'live', pregame:'agent select', idle:'waiting for match',
                      starting:'starting', no_client:'riot client not running',
@@ -1400,6 +1463,10 @@ async function refresh(force){
       /403/.test(e.message) ? 'link is missing its token' : 'valskins unreachable';
   }
 }
+let storedTheme = null;
+try{ storedTheme = localStorage.getItem('valskins.theme'); }catch(e){}
+applyTheme(storedTheme || currentTheme());
+
 // First launch lands on the instructions; after that it remembers your last tab.
 let storedView = null;
 try{ storedView = localStorage.getItem('valskins.view'); }catch(e){}
