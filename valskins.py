@@ -203,6 +203,7 @@ class Auth:
         self.region = args.region
         self.shard = args.shard
         self.client_version = args.client_version
+        self.version_log = self.version_api = None
 
     def refresh(self):
         path = lockfile_path(self.args.lockfile)
@@ -267,22 +268,41 @@ class Auth:
             "e.g. --region na --shard na"
         )
 
-    def _detect_client_version(self):
-        status, data = http_json("https://valorant-api.com/v1/version",
-                                 insecure_retry=True)
-        if status == 200 and data:
-            self.client_version = data["data"]["riotClientVersion"]
-            return
+    def _log_version(self):
+        """What the installed build reports about itself - authoritative."""
         try:
             with open(shootergame_log(self.args.log), "r", encoding="utf-8",
                       errors="ignore") as f:
                 m = re.search(r"CI server version:\s*(\S+)", f.read())
-            if m:
-                self.client_version = m.group(1)
-                return
+            return m.group(1) if m else None
         except OSError:
-            pass
-        raise RiotAuthError("Could not determine the client version.")
+            return None
+
+    def _api_version(self):
+        status, data = http_json("https://valorant-api.com/v1/version",
+                                 insecure_retry=True)
+        if status == 200 and data:
+            return data["data"]["riotClientVersion"]
+        return None
+
+    def _detect_client_version(self):
+        # The game's own log beats valorant-api.com, which can lag a patch by
+        # hours - and a version Riot doesn't recognise gets the request refused.
+        self.version_log = self._log_version()
+        self.version_api = self._api_version()
+        self.client_version = self.version_log or self.version_api
+        if not self.client_version:
+            raise RiotAuthError("Could not determine the client version.")
+
+    def try_alt_version(self):
+        """Swap to the other candidate version. Returns True if there was one."""
+        other = (self.version_api if self.client_version == self.version_log
+                 else self.version_log)
+        if not other or other == self.client_version:
+            return False
+        log(f"client version {self.client_version} -> {other}")
+        self.client_version = other
+        return True
 
     @property
     def headers(self):
@@ -292,22 +312,6 @@ class Auth:
             "X-Riot-ClientPlatform": CLIENT_PLATFORM,
             "X-Riot-ClientVersion": self.client_version,
         }
-
-    def try_log_version(self):
-        """Swap in the client version from ShooterGame.log. valorant-api.com can
-        lag a patch by a few hours; the log matches what's actually installed.
-        Returns True if it produced something new to try."""
-        try:
-            with open(shootergame_log(self.args.log), "r", encoding="utf-8",
-                      errors="ignore") as f:
-                m = re.search(r"CI server version:\s*(\S+)", f.read())
-        except OSError:
-            return False
-        if not m or m.group(1) == self.client_version:
-            return False
-        log(f"client version {self.client_version} -> {m.group(1)} (from game log)")
-        self.client_version = m.group(1)
-        return True
 
     @property
     def local(self):
@@ -445,6 +449,8 @@ class Collector(threading.Thread):
             "region": a.region,
             "shard": a.shard,
             "client_version": a.client_version,
+            "version_from_log": a.version_log,
+            "version_from_api": a.version_api,
             "catalog_skins": len(self.catalog["skins"]) if self.catalog else 0,
             "players": len(st.get("players") or []),
             "platform": f"{sys.platform} python {sys.version.split()[0]}",
@@ -485,9 +491,10 @@ class Collector(threading.Thread):
                 log(f"api error: {e}")
                 # A 400 here is nearly always a client version that has drifted
                 # from the installed build; the game's own log is authoritative.
-                if e.status == 400 and self.auth.try_log_version():
-                    self._set(status="idle", message="Client version looked stale - "
-                                                     "retrying with the game's own.")
+                if e.status in (400, 403) and self.auth.try_alt_version():
+                    self._set(status="idle",
+                              message="Client version looked wrong - retrying with "
+                                      f"{self.auth.client_version}.")
                 else:
                     if e.status == 401:
                         authed = False   # worth a fresh token before giving up
@@ -520,18 +527,31 @@ class Collector(threading.Thread):
             self._set(status="idle", phase="menus", players=[], score=None,
                       message="In the menus. Queue up and this fills in.")
         else:
-            # No presence blob means VALORANT itself isn't up yet - the Riot
-            # launcher alone gets a token the game servers won't accept. Probing
-            # them here just manufactures 401s, so only do it occasionally as a
-            # safety net in case presence is merely late.
+            # No usable presence. That can mean VALORANT isn't running, or that
+            # presence itself is unreadable - so ask the game servers directly
+            # rather than assuming. They're the source of truth for the roster;
+            # presence is only ever an optimisation.
             self._probe += 1
-            probed = (self._probe % 10 == 0 and
-                      (self._ingame(ctx, probe=True) or self._pregame(ctx, probe=True)))
-            if not probed:
+            if self._probe % 3:
+                return
+            first = self._ingame(ctx, probe=True)
+            if first == "match":
+                return
+            second = self._pregame(ctx, probe=True)
+            if second == "match":
+                return
+            if "none" in (first, second):
+                # Authenticated fine, simply not in a match: the healthy state.
+                self._match_id = None
+                self._set(status="idle", phase="menus", players=[], score=None,
+                          message="Waiting for a match. (Presence unreadable, so "
+                                  "this is polling the match endpoints directly.)")
+            else:
                 self._set(status="waiting_game", phase="unknown", players=[],
                           score=None,
-                          message="Waiting for VALORANT. The Riot launcher on its own "
-                                  "isn't enough - the game has to be running.")
+                          message="Can't see a session yet. If VALORANT is running "
+                                  "and this persists, check the diagnostics in "
+                                  "how to use.")
 
     def _presence(self):
         base, headers = self.auth.local
@@ -550,7 +570,10 @@ class Collector(threading.Thread):
                                   if p.get("product")})
         if not mine:
             return None
-        p = mine[0]
+        # One puuid can have several entries - the riot client's carries no
+        # payload, the game's does. Take whichever actually has one.
+        p = next((e for e in mine if e.get("private")), mine[0])
+        dbg["own_entries"] = len(mine)
         dbg["own_product"] = p.get("product")
         dbg["has_private"] = bool(p.get("private"))
         if not p.get("private"):
@@ -570,29 +593,29 @@ class Collector(threading.Thread):
                                  headers=a.headers)
         if status in (400, 401, 403):
             if probe:
-                return False        # game not up yet; not an auth failure
+                return "denied"
             raise RiotApiError("core-game/players", status, data)
         if status == 404 or not data or not data.get("MatchID"):
-            return False
+            return "none" if probe else False
         match_id = data["MatchID"]
 
         # Roster is locked for the match: fetch once, then only refresh the score.
         if match_id == self._match_id and self.state().get("players"):
             self._set(status="in_game", phase="ingame", score=ctx["score"])
-            return True
+            return "match"
 
         status, match = http_json(f"{a.glz}/core-game/v1/matches/{match_id}",
                                   headers=a.headers)
         if status != 200 or not match:
             self._set(status="idle", phase="ingame",
                       message=f"Match fetch failed (HTTP {status}).")
-            return True
+            return "match"
         status, loadouts = http_json(
             f"{a.glz}/core-game/v1/matches/{match_id}/loadouts", headers=a.headers)
         if status != 200 or not loadouts:
             self._set(status="idle", phase="ingame",
                       message=f"Loadout fetch failed (HTTP {status}).")
-            return True
+            return "match"
 
         players = self._build_players(match, loadouts)
         self._match_id = match_id
@@ -603,7 +626,7 @@ class Collector(threading.Thread):
                   map=map_name, mode=mode, queue=ctx["queue"], score=ctx["score"],
                   you=a.puuid, players=players)
         log(f"match {match_id[:8]} on {map_name}: {len(players)} loadouts")
-        return True
+        return "match"
 
     def _pregame(self, ctx, probe=False):
         """Agent select. Skins aren't published until the match starts, but the
@@ -613,15 +636,15 @@ class Collector(threading.Thread):
                                  headers=a.headers)
         if status in (400, 401, 403):
             if probe:
-                return False
+                return "denied"
             raise RiotApiError("pregame/players", status, data)
         if status == 404 or not data or not data.get("MatchID"):
-            return False
+            return "none" if probe else False
         match_id = data["MatchID"]
         status, match = http_json(f"{a.glz}/pregame/v1/matches/{match_id}",
                                   headers=a.headers)
         if status != 200 or not match:
-            return False
+            return "none" if probe else False
 
         rows = ((match.get("AllyTeam") or {}).get("Players")) or []
         names = self._names([p["Subject"] for p in rows])
@@ -650,7 +673,7 @@ class Collector(threading.Thread):
                   map=map_name, mode="agent select", queue=ctx["queue"], score=None,
                   you=a.puuid, players=players,
                   message="Agent select - skins unlock the moment the match starts.")
-        return True
+        return "match"
 
     def _build_players(self, match, loadouts):
         entries = loadouts.get("Loadouts") or []
