@@ -501,8 +501,8 @@ def build_catalog(cache_path):
             except OSError:
                 pass
 
-    cat = {"weapon_names": {}, "skins": {}, "levels": {}, "chromas": {},
-           "agents": {}, "maps": {}, "tiers": {}, "buddies": {}}
+    cat = {"weapon_names": {}, "weapon_meta": {}, "skins": {}, "levels": {},
+           "chromas": {}, "agents": {}, "maps": {}, "tiers": {}, "buddies": {}}
 
     for tier in raw["tiers"]:
         color = (tier.get("highlightColor") or "")[:6]
@@ -514,6 +514,12 @@ def build_catalog(cache_path):
 
     for w in raw["weapons"]:
         cat["weapon_names"][w["uuid"].lower()] = w["displayName"]
+        shop = w.get("shopData") or {}
+        cat["weapon_meta"][w["displayName"]] = {
+            # Melee has no shop entry; it gets its own column in the buy menu.
+            "category": shop.get("categoryText") or "Melee",
+            "cost": shop.get("cost") or 0,
+        }
         for skin in w.get("skins") or []:
             su = skin["uuid"].lower()
             cat["skins"][su] = {
@@ -946,8 +952,12 @@ class Collector(threading.Thread):
             if variant and variant.strip().lower() == skin["name"].strip().lower():
                 variant = None
             tier = cat["tiers"].get(skin["tier"], {})
+            weapon_name = cat["weapon_names"].get(weapon_id.lower(), "Weapon")
+            meta = cat["weapon_meta"].get(weapon_name, {})
             skins.append({
-                "weapon": cat["weapon_names"].get(weapon_id.lower(), "Weapon"),
+                "weapon": weapon_name,
+                "category": meta.get("category", "Melee"),
+                "cost": meta.get("cost", 0),
                 "skin": skin["name"],
                 "variant": variant,
                 "icon": icon,
@@ -962,11 +972,14 @@ class Collector(threading.Thread):
 
 
 def demo_state(cat):
-    """Fake roster so the UI can be checked without Valorant running."""
+    """Fake roster so the UI can be checked without Valorant running. Gives
+    everyone a full loadout, some of it standard, so the buy-menu view has
+    something realistic to lay out."""
     pool = {}
     for s in cat["skins"].values():
         if s["tier"] and not s["name"].lower().startswith("standard"):
             pool.setdefault(s["weapon"], []).append(s)
+    weapons = sorted(cat["weapon_meta"])
     agents = list(cat["agents"].values())
     players = []
     for i, nm in enumerate(["you#0000", "TrollTarget#NA1", "SkinCollector#EUW",
@@ -975,13 +988,27 @@ def demo_state(cat):
                             "enemy4#000", "enemy5#000"]):
         agent = agents[i % len(agents)]
         skins = []
-        for j, weapon in enumerate(["Vandal", "Phantom", "Operator", "Sheriff", "Melee"]):
-            bucket = pool.get(weapon) or next(iter(pool.values()))
-            s = bucket[(i * 37 + j * 101) % len(bucket)]
-            tier = cat["tiers"].get(s["tier"], {})
-            skins.append({"weapon": weapon, "skin": s["name"], "variant": None,
-                          "icon": s["icon"], "buddy": None, "tier": tier.get("name"),
-                          "color": tier.get("color", "#8b8b8b"), "default": False})
+        for j, weapon in enumerate(weapons):
+            meta = cat["weapon_meta"][weapon]
+            bucket = pool.get(weapon)
+            # Leave roughly a third standard, varying per player.
+            owned = bucket and (i * 7 + j * 5) % 3 != 0
+            if owned:
+                sk = bucket[(i * 37 + j * 101) % len(bucket)]
+                tier = cat["tiers"].get(sk["tier"], {})
+                skins.append({"weapon": weapon, "category": meta["category"],
+                              "cost": meta["cost"], "skin": sk["name"],
+                              "variant": None, "icon": sk["icon"], "buddy": None,
+                              "tier": tier.get("name"),
+                              "color": tier.get("color", "#8b8b8b"),
+                              "default": False})
+            else:
+                skins.append({"weapon": weapon, "category": meta["category"],
+                              "cost": meta["cost"], "skin": f"Standard {weapon}",
+                              "variant": None, "icon": None, "buddy": None,
+                              "tier": None, "color": "#8b8b8b", "default": True})
+        order = {w: k for k, w in enumerate(WEAPON_ORDER)}
+        skins.sort(key=lambda x: (order.get(x["weapon"], 99), x["weapon"]))
         players.append({"puuid": f"demo-{i}", "name": nm, "agent": agent["name"],
                         "agent_icon": agent["icon"], "team": "Blue" if i < 5 else "Red",
                         "is_you": i == 0, "is_teammate": i < 5,
@@ -1104,11 +1131,11 @@ box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a)),
 transition:transform .24s cubic-bezier(.2,.8,.3,1), box-shadow .24s;
 animation:rise .5s cubic-bezier(.2,.75,.3,1) both;
 animation-delay:calc(var(--i,0) * 45ms)}
+.card{cursor:pointer}
 .card:hover{transform:translateY(-3px);
-box-shadow:0 2px 4px rgb(var(--shad) / var(--shad-a)),
+box-shadow:0 0 0 2px var(--mine), 0 2px 4px rgb(var(--shad) / var(--shad-a)),
 0 26px 44px -24px rgb(var(--shad) / var(--shad-b))}
-.card.you{box-shadow:0 0 0 2px var(--mine),
-0 16px 34px -20px rgb(var(--shad) / var(--shad-b))}
+.card:hover .card-foot{color:var(--mine-ink);background:var(--mine-wash)}
 
 .who{display:flex;align-items:center;gap:12px;padding:15px 17px 13px}
 .who img{width:38px;height:38px;border-radius:12px;background:var(--chip)}
@@ -1137,6 +1164,64 @@ white-space:nowrap;font-weight:600}
 .muted{color:var(--ink-3)}
 .empty{padding:72px 20px;text-align:center;color:var(--ink-3);font-weight:600;
 animation:rise .45s cubic-bezier(.2,.75,.3,1) both}
+
+/* card footer: the affordance for the full loadout */
+.card-foot{padding:9px 17px 12px;font-size:11.5px;font-weight:700;
+letter-spacing:.04em;color:var(--ink-3);text-align:right;
+transition:background .18s, color .18s}
+.empty-row .name{font-weight:600}
+.thumb.blank{background:var(--surface-2)}
+
+/* ------------------------------------------------------- the loadout view */
+#shop{position:fixed;inset:0;z-index:20;display:flex;align-items:center;
+justify-content:center;padding:26px;background:rgb(12 18 26 / .55);
+backdrop-filter:blur(4px);animation:fade .18s ease both}
+.shop-panel{background:var(--bg);border-radius:20px;width:100%;
+max-width:1180px;max-height:100%;overflow:auto;
+box-shadow:0 30px 80px -20px rgb(0 0 0 / .5);
+animation:pop .26s cubic-bezier(.2,.8,.3,1) both}
+
+.shop-head{display:flex;align-items:center;gap:13px;padding:18px 22px;
+position:sticky;top:0;background:var(--bg);z-index:1;
+border-bottom:1px solid var(--line)}
+.shop-head img{width:42px;height:42px;border-radius:13px;background:var(--chip)}
+.shop-head b{font-size:16px;font-weight:800}
+.shop-head small{display:block;color:var(--ink-3);font-size:12px;font-weight:600}
+.shop-head button{margin-left:auto;font-size:15px}
+
+/* five columns, same order the buy menu uses */
+.shop-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;
+padding:18px 22px 24px;align-items:start}
+.shop-col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.shop-cat h5{margin:0 0 7px;font-size:9.5px;font-weight:800;letter-spacing:.13em;
+text-transform:uppercase;color:var(--ink-3);text-align:center}
+.shop-tiles{display:flex;flex-direction:column;gap:7px}
+
+.tile{background:var(--surface);border-radius:12px;padding:9px 11px 8px;
+display:flex;flex-direction:column;gap:2px;min-width:0;position:relative;
+box-shadow:0 1px 2px rgb(var(--shad) / var(--shad-a));
+border-top:2px solid var(--tier);
+transition:transform .16s cubic-bezier(.2,.8,.3,1), box-shadow .18s;
+animation:rise .32s cubic-bezier(.2,.75,.3,1) both}
+.tile:hover{transform:translateY(-2px);
+box-shadow:0 10px 22px -14px rgb(var(--shad) / var(--shad-b))}
+.tile img{width:100%;height:38px;object-fit:contain;object-position:center}
+.tile-blank{height:38px}
+/* skin name sits where the price does in the real buy menu */
+.tile-skin{font-size:11.5px;font-weight:700;color:var(--ink);text-align:right;
+overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile-weapon{font-size:9.5px;font-weight:800;letter-spacing:.1em;
+text-transform:uppercase;color:var(--ink-3);text-align:right}
+.tile.std{border-top-color:var(--line-2);opacity:.62}
+.tile.std .tile-skin{color:var(--ink-3);font-weight:600}
+
+@media (max-width:1000px){
+  .shop-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.985)}
+to{opacity:1;transform:none}}
 
 /* ----------------------------------------------------------------- share */
 #sharebox{font-size:13px;padding:16px 22px;background:var(--baby-wash);
@@ -1256,6 +1341,10 @@ to{opacity:1;transform:none}}
 </div>
 <main id="out"><div class="empty">loading&hellip;</div></main>
 
+<div id="shop" hidden onclick="if(event.target===this) closeLoadout()">
+  <div class="shop-panel" id="shopbody"></div>
+</div>
+
 <main id="help" hidden>
 <div class="doc">
   <nav class="doc-nav" id="docnav">
@@ -1297,7 +1386,14 @@ to{opacity:1;transform:none}}
 
     <section class="doc-sec" id="sec-roster" hidden>
       <h3>Reading the roster</h3>
-      <p class="lead">One card per player, one row per weapon, default skins hidden.</p>
+      <p class="lead">One card per player, showing the five guns anyone actually
+        argues about: Vandal, Phantom, Operator, Sheriff and the knife.</p>
+
+      <h4>The full loadout</h4>
+      <p>Click any card and their whole collection opens in the shape of the in-game
+        buy menu &mdash; same columns, same order, with the skin's name where the price
+        normally sits. Weapons they've left on the default skin are dimmed and marked
+        <b>Standard</b>. Escape or a click outside closes it.</p>
 
       <h4>The dot</h4>
       <p>The coloured dot on each row is the skin's rarity &mdash;
@@ -1307,15 +1403,17 @@ to{opacity:1;transform:none}}
 
       <h4>Names and variants</h4>
       <p>The smaller grey text after a skin is its chroma variant or the gun buddy
-        attached to it. Your own card is outlined and tagged <b>you</b>.</p>
+        attached to it. Your own card is tagged <b>you</b>, and the outline follows
+        whichever card your pointer is over.</p>
 
       <h4>The other team</h4>
       <p><b>show enemies</b> reveals their loadouts too. Names respect the game's
         incognito setting, so hidden players show as their agent instead.</p>
 
-      <h4>Weapons shown</h4>
-      <p>Everything a player owns a skin for, ordered Vandal, Phantom, Operator,
-        Sheriff, knife, then the rest. Collectors get tall cards.</p>
+      <h4>Rarity at a glance</h4>
+      <p>In the loadout view the coloured strip along the top of each tile is that
+        skin's tier, so a card full of pink and gold is someone who has spent real
+        money &mdash; which is, after all, the point.</p>
     </section>
 
     <section class="doc-sec" id="sec-status" hidden>
@@ -1454,6 +1552,10 @@ to{opacity:1;transform:none}}
 </main>
 <script>
 let showEnemies = false, last = 0, lastSig = '', lastScore = '';
+// A skin render that fails to load should leave an empty chip, not a broken
+// image glyph - icons occasionally 404 and networks flake.
+const PX = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+const FALLBACK = `onerror="this.onerror=null;this.src='${PX}';this.classList.add('blank')"`;
 // A LAN viewer opens the page with ?token=...; every poll has to carry it too.
 const TOKEN = new URLSearchParams(location.search).get('token');
 function toggleEnemies(){ showEnemies = !showEnemies; document.getElementById('enemybtn').textContent =
@@ -1541,27 +1643,102 @@ function renderShare(urls){
     </div>`).join('');
 }
 
-function card(p){
-  const rows = p.skins.filter(s => !s.default).map(s => `
+// The card is a summary: the five guns anyone actually asks about. Everything
+// else lives one click away in the loadout view.
+const HEADLINE = ['Vandal', 'Phantom', 'Operator', 'Sheriff', 'Melee'];
+
+function skinRow(s, weapon){
+  if(!s) return `
+    <div class="row empty-row">
+      <span class="pip" style="background:var(--line-2)"></span>
+      <div class="w">${esc(weapon)}</div>
+      <div class="thumb blank"></div>
+      <div class="name muted">standard</div>
+    </div>`;
+  return `
     <div class="row">
       <span class="pip" style="background:${esc(s.color)}" title="${esc(s.tier || '')}"></span>
       <div class="w">${esc(s.weapon)}</div>
-      ${s.icon ? `<img class="thumb" src="${esc(s.icon)}" loading="lazy">` : '<div class="thumb"></div>'}
+      ${s.icon ? `<img class="thumb" src="${esc(s.icon)}" loading="lazy" ${FALLBACK}>` : '<div class="thumb blank"></div>'}
       <div class="name">${esc(s.skin)}${s.variant ? ` <span>${esc(s.variant)}</span>` : ''}${
         s.buddy ? ` <span>&middot; ${esc(s.buddy)}</span>` : ''}</div>
-    </div>`).join('');
-  return `<div class="card${p.is_you ? ' you' : ''}" style="--i:${p._i || 0}">
+    </div>`;
+}
+
+function card(p){
+  const owned = (p.skins || []).filter(s => !s.default);
+  const byWeapon = {};
+  owned.forEach(s => byWeapon[s.weapon] = s);
+  const rows = HEADLINE.map(w => skinRow(byWeapon[w], w)).join('');
+  const extra = owned.filter(s => !HEADLINE.includes(s.weapon)).length;
+  const waiting = p.skins.length === 0 && p.locked !== undefined;
+
+  return `<div class="card${p.is_you ? ' you' : ''}" style="--i:${p._i || 0}"
+      onclick="openLoadout('${esc(p.puuid)}')" title="see the full loadout">
     <div class="who">
-      ${p.agent_icon ? `<img src="${esc(p.agent_icon)}">` : ''}
+      ${p.agent_icon ? `<img src="${esc(p.agent_icon)}" ${FALLBACK}>` : ''}
       <div><b>${esc(p.name)}</b><small>${esc(p.agent)}${p.level ? ' &middot; lvl ' + p.level : ''}</small></div>
       ${p.is_you ? '<span class="tag">you</span>' : ''}
     </div>
-    <div class="rows">${rows || `<div class="row muted" style="padding:10px 12px">${
-      p.skins.length === 0 && p.locked !== undefined
-        ? (p.locked ? 'locked in – skins load at match start' : 'still picking…')
-        : 'all default skins'}</div>`}</div>
+    ${waiting
+      ? `<div class="rows"><div class="row muted" style="padding:12px">${
+          p.locked ? 'locked in – skins load at match start' : 'still picking…'}</div></div>`
+      : `<div class="rows">${rows}</div>
+         <div class="card-foot">${extra
+            ? `+${extra} more ${extra === 1 ? 'skin' : 'skins'}`
+            : 'full loadout'} &rsaquo;</div>`}
   </div>`;
 }
+
+// ------------------------------------------------------- the loadout view
+// Laid out like the in-game buy menu: the same columns, in the same order,
+// with the skin name where the price would be.
+const SHOP_COLUMNS = [
+  ['Sidearms'],
+  ['SMGs', 'Shotguns'],
+  ['Assault Rifles'],
+  ['Sniper Rifles', 'Heavy Weapons'],
+  ['Melee'],
+];
+
+function tile(s){
+  const std = s.default;
+  return `<div class="tile${std ? ' std' : ''}" style="--tier:${esc(s.color)}">
+    <div class="tile-skin">${esc(std ? 'Standard' : s.skin)}</div>
+    ${s.icon ? `<img src="${esc(s.icon)}" loading="lazy" ${FALLBACK}>` : '<div class="tile-blank"></div>'}
+    <div class="tile-weapon">${esc(s.weapon)}</div>
+  </div>`;
+}
+
+function openLoadout(puuid){
+  const p = ((window._s || {}).players || []).find(x => x.puuid === puuid);
+  if(!p || !p.skins.length) return;
+
+  const byCat = {};
+  p.skins.forEach(s => (byCat[s.category] = byCat[s.category] || []).push(s));
+  Object.values(byCat).forEach(list => list.sort((a, b) => a.cost - b.cost));
+
+  const cols = SHOP_COLUMNS.map(groups => `
+    <div class="shop-col">${groups.filter(g => byCat[g]).map(g => `
+      <div class="shop-cat">
+        <h5>${esc(g)}</h5>
+        <div class="shop-tiles">${byCat[g].map(tile).join('')}</div>
+      </div>`).join('')}</div>`).join('');
+
+  const owned = p.skins.filter(s => !s.default).length;
+  document.getElementById('shopbody').innerHTML = `
+    <div class="shop-head">
+      ${p.agent_icon ? `<img src="${esc(p.agent_icon)}">` : ''}
+      <div><b>${esc(p.name)}</b><small>${esc(p.agent)} &middot; ${owned} of
+        ${p.skins.length} weapons skinned</small></div>
+      <button class="icon" onclick="closeLoadout()" title="close (esc)">✕</button>
+    </div>
+    <div class="shop-grid">${cols}</div>`;
+  document.getElementById('shop').hidden = false;
+}
+
+function closeLoadout(){ document.getElementById('shop').hidden = true; }
+addEventListener('keydown', e => { if(e.key === 'Escape') closeLoadout(); });
 
 function render(s){
   if(!s) return;
