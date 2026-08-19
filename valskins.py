@@ -418,7 +418,8 @@ class Auth:
 
     @property
     def pd(self):
-        return f"https://pd-{self.shard}.a.pvp.net"
+        # pd.{shard}, not pd-{shard} - the latter doesn't resolve at all.
+        return f"https://pd.{self.shard}.a.pvp.net"
 
 
 # -------------------------------------------------------------- asset catalog
@@ -864,9 +865,17 @@ class Collector(threading.Thread):
         return out
 
     def _names(self, puuids):
-        status, data = http_json(f"{self.auth.pd}/name-service/v2/players",
-                                 method="PUT", headers=self.auth.headers, body=puuids)
+        """Riot ids. Cosmetic next to the skins, so never let this sink a roster -
+        the agent name stands in when it fails."""
+        try:
+            status, data = http_json(f"{self.auth.pd}/name-service/v2/players",
+                                     method="PUT", headers=self.auth.headers,
+                                     body=puuids)
+        except NetworkError as e:
+            log(f"warning: names unavailable ({e})")
+            return {}
         if status != 200 or not data:
+            log(f"warning: name-service returned HTTP {status}")
             return {}
         return {e["Subject"]: f"{e['GameName']}#{e['TagLine']}" for e in data
                 if e.get("GameName")}
