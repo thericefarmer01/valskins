@@ -129,6 +129,36 @@ Skin uuids resolve by looking every socket id up in a prebuilt skin/level/chroma
 index, rather than trusting hardcoded socket uuids that Riot occasionally reshuffles.
 Standard-issue skins are hidden; the asset catalog is cached for a day.
 
+## Four things that will bite anyone rebuilding this
+
+Learned the hard way against a live client, and each one produced a symptom that
+pointed somewhere else entirely.
+
+**The user agent decides whether you get in.** With urllib's default,
+`glz` answers **403** with an empty body — no `errorCode`, because the refusal is
+from the edge and never reaches Riot's API. Send what the game sends,
+`ShooterGame/13.04.00.5340415 Windows/10.0.19045.1.256.64bit`, and the same request
+returns 200. An HTTP error carrying no `errorCode` is the tell that it isn't Riot
+refusing you.
+
+**The player-data host is `pd.{shard}.a.pvp.net`, with a dot.** `pd-{shard}` doesn't
+resolve, which surfaces as a DNS error and looks convincingly like the user's VPN or
+adblocker rather than a wrong hostname.
+
+**`ShooterGame.log` beats valorant-api.com for the client version.** They disagree —
+observed `shipping-20-5340415` installed against `shipping-18-5304478` from the API —
+and a version Riot doesn't recognise gets the request refused.
+
+**Presence is nested now.** `sessionLoopState`, `matchMap` and `queueId` used to sit
+at the top level of the base64 `private` blob. They now live inside
+`matchPresenceData` / `partyPresenceData`, so a flat read returns `None` and the state
+machine silently never advances. Search the tree instead of indexing a fixed path.
+
+Every one of these is diagnosable from the **how to use → copy diagnostics** panel
+(or `/api/diag`), which reports both candidate versions, the presence shape it
+actually found, the last 14 requests with status codes, and whether a failing
+response came from Cloudflare or from Riot.
+
 ## Notes
 
 - **Read-only.** The same endpoints the game client calls, plus a public asset CDN.
