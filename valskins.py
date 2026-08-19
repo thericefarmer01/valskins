@@ -956,8 +956,7 @@ class Collector(threading.Thread):
             tier = cat["tiers"].get(skin["tier"], {})
             weapon_name = cat["weapon_names"].get(weapon_id.lower(), "Weapon")
             meta = cat["weapon_meta"].get(weapon_name, {})
-            # chroma art beats level art beats skin art beats the bare weapon
-            icon = icon or skin["icon"] or meta.get("icon")
+            icon = icon or skin["icon"]
             skins.append({
                 "weapon": weapon_name,
                 "category": meta.get("category", "Melee"),
@@ -1009,7 +1008,7 @@ def demo_state(cat):
             else:
                 skins.append({"weapon": weapon, "category": meta["category"],
                               "cost": meta["cost"], "skin": f"Standard {weapon}",
-                              "variant": None, "icon": meta.get("icon"), "buddy": None,
+                              "variant": None, "icon": None, "buddy": None,
                               "tier": None, "color": "#8b8b8b", "default": True})
         order = {w: k for k, w in enumerate(WEAPON_ORDER)}
         skins.sort(key=lambda x: (order.get(x["weapon"], 99), x["weapon"]))
@@ -1038,6 +1037,7 @@ PAGE = r"""<!doctype html>
   --surface:#ffffff; --surface-2:#f8f3ec; --chip:#eaf1f7;
   --ink:#25333f; --ink-2:#5d7183; --ink-3:#93a4b2;
   --line:#f0e7da; --line-2:#e7ebef;
+  --art:#2b3542; --art-line:#3a4553;
   --baby:#8fd0ee; --baby-deep:#3f9fd0; --baby-ink:#1f7ba7; --baby-wash:#e8f5fc;
   --mint:#3fb489; --amber:#dd9a2e; --rose:#dc6a69;
   /* your own card: warm sand, so it belongs to the cream rather than
@@ -1052,6 +1052,7 @@ PAGE = r"""<!doctype html>
     --surface:#1a2330; --surface-2:#212c3a; --chip:#243040;
     --ink:#e9eff5; --ink-2:#a2b5c4; --ink-3:#71879a;
     --line:#25313e; --line-2:#25313e;
+    --art:#0f1620; --art-line:#243040;
     --baby:#79c6e9; --baby-deep:#4aa8d8; --baby-ink:#9bd9f3; --baby-wash:#1c2c39;
     --mint:#57c79c; --amber:#e5b45f; --rose:#e58786;
     --mine:#b6905c; --mine-wash:#2b2620; --mine-ink:#e0c193;
@@ -1063,6 +1064,7 @@ PAGE = r"""<!doctype html>
   --surface:#1a2330; --surface-2:#212c3a; --chip:#243040;
   --ink:#e9eff5; --ink-2:#a2b5c4; --ink-3:#71879a;
   --line:#25313e; --line-2:#25313e;
+  --art:#0f1620; --art-line:#243040;
   --baby:#79c6e9; --baby-deep:#4aa8d8; --baby-ink:#9bd9f3; --baby-wash:#1c2c39;
   --mint:#57c79c; --amber:#e5b45f; --rose:#e58786;
   --mine:#b6905c; --mine-wash:#2b2620; --mine-ink:#e0c193;
@@ -1159,8 +1161,8 @@ transition:background .16s}
 filter:saturate(1.1) brightness(.94)}
 .w{width:58px;flex:none;font-size:9.5px;font-weight:700;color:var(--ink-3);
 text-transform:uppercase;letter-spacing:.09em}
-.thumb{width:92px;height:32px;flex:none;object-fit:contain;object-position:center;
-padding:2px 5px;border-radius:9px;background:var(--chip);
+.thumb{width:74px;height:26px;flex:none;object-fit:contain;object-position:center;
+padding:1px 4px;border-radius:8px;background:var(--art);
 transition:transform .22s cubic-bezier(.2,.8,.3,1)}
 .name{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;
 white-space:nowrap;font-weight:600}
@@ -1174,8 +1176,7 @@ animation:rise .45s cubic-bezier(.2,.75,.3,1) both}
 letter-spacing:.04em;color:var(--ink-3);text-align:right;
 transition:background .18s, color .18s}
 .empty-row .name{font-weight:600}
-.empty-row .thumb{opacity:.38;filter:grayscale(1)}
-.thumb.blank{background:var(--surface-2)}
+.thumb.blank{background:var(--art);opacity:.35}
 
 /* ------------------------------------------------------- the loadout view */
 #shop{position:fixed;inset:0;z-index:20;display:flex;align-items:center;
@@ -1210,18 +1211,18 @@ transition:transform .16s cubic-bezier(.2,.8,.3,1), box-shadow .18s;
 animation:rise .32s cubic-bezier(.2,.75,.3,1) both}
 .tile:hover{transform:translateY(-2px);
 box-shadow:0 10px 22px -14px rgb(var(--shad) / var(--shad-b))}
-.tile img{width:100%;height:56px;object-fit:contain;object-position:center;
-margin:3px 0 1px}
-.tile-blank{height:56px}
+.tile-art{background:var(--art);border-radius:9px;padding:5px 7px;margin:4px 0 2px;
+border:1px solid var(--art-line)}
+.tile-art img{width:100%;height:42px;object-fit:contain;object-position:center;
+display:block}
+.tile-blank{height:42px;opacity:.3}
 /* skin name sits where the price does in the real buy menu */
 .tile-skin{font-size:11.5px;font-weight:700;color:var(--ink);text-align:right;
 overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tile-weapon{font-size:9.5px;font-weight:800;letter-spacing:.1em;
 text-transform:uppercase;color:var(--ink-3);text-align:right}
-.tile.std{border-top-color:var(--line-2)}
-.tile.std img{opacity:.4;filter:grayscale(1)}
+.tile.std{border-top-color:var(--line-2);opacity:.62}
 .tile.std .tile-skin{color:var(--ink-3);font-weight:600}
-.tile.std .tile-weapon{color:var(--ink-3)}
 
 @media (max-width:1000px){
   .shop-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -1656,14 +1657,11 @@ function renderShare(urls){
 const HEADLINE = ['Vandal', 'Phantom', 'Operator', 'Sheriff', 'Melee'];
 
 function skinRow(s, weapon){
-  // A weapon left on its default skin still shows the gun, greyed - same
-  // treatment as the loadout view, so the five rows always read as five guns.
   if(!s || s.default) return `
     <div class="row empty-row">
       <span class="pip" style="background:var(--line-2)"></span>
       <div class="w">${esc(weapon)}</div>
-      ${s && s.icon ? `<img class="thumb" src="${esc(s.icon)}" loading="lazy" ${FALLBACK}>`
-                    : '<div class="thumb blank"></div>'}
+      <div class="thumb blank"></div>
       <div class="name muted">standard</div>
     </div>`;
   return `
@@ -1687,7 +1685,7 @@ function card(p){
   return `<div class="card${p.is_you ? ' you' : ''}" style="--i:${p._i || 0}"
       onclick="openLoadout('${esc(p.puuid)}')" title="see the full loadout">
     <div class="who">
-      ${p.agent_icon ? `<img src="${esc(p.agent_icon)}" ${FALLBACK}>` : ''}
+      ${p.agent_icon ? `<img src="${esc(p.agent_icon)}">` : ''}
       <div><b>${esc(p.name)}</b><small>${esc(p.agent)}${p.level ? ' &middot; lvl ' + p.level : ''}</small></div>
       ${p.is_you ? '<span class="tag">you</span>' : ''}
     </div>
@@ -1716,7 +1714,9 @@ function tile(s){
   const std = s.default;
   return `<div class="tile${std ? ' std' : ''}" style="--tier:${esc(s.color)}">
     <div class="tile-skin">${esc(std ? 'Standard' : s.skin)}</div>
-    ${s.icon ? `<img src="${esc(s.icon)}" loading="lazy" ${FALLBACK}>` : '<div class="tile-blank"></div>'}
+    <div class="tile-art">${s.icon
+      ? `<img src="${esc(s.icon)}" loading="lazy" ${FALLBACK}>`
+      : '<div class="tile-blank"></div>'}</div>
     <div class="tile-weapon">${esc(s.weapon)}</div>
   </div>`;
 }
